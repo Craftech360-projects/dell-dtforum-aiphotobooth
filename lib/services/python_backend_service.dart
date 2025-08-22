@@ -6,7 +6,7 @@ import 'package:http_parser/http_parser.dart';
 
 class PythonBackendService {
   // Use 127.0.0.1 instead of localhost for better browser compatibility
-  static const String _baseUrl = 'http://127.0.0.1:8000';
+  static const String _baseUrl = 'http://127.0.0.1:8001';
   
   static Future<Uint8List?> swapFaces({
     required Uint8List sourceImage,
