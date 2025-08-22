@@ -43,3 +43,18 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+.vercel
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Python virtual environments
+python_service/venv/
+**/venv/
+**/__pycache__/
+
+# Large files and backups
+*.backup.tar.gz
+*.tar.gz

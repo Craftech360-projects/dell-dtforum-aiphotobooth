@@ -1,15 +1,20 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:html' as html;
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:dell_photobooth_2025/config/app_config.dart';
+import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
-import 'package:dell_photobooth_2025/screens/output_screen.dart';
-import 'package:dell_photobooth_2025/services/python_hand_detection.dart';
+import 'package:dell_photobooth_2025/screens/processing_screen.dart';
+import 'package:dell_photobooth_2025/services/hand_detection_service.dart';
+import 'package:dell_photobooth_2025/services/linkedin_processing_service.dart';
+import 'package:dell_photobooth_2025/services/runpod_service.dart';
 import 'package:dell_photobooth_2025/services/supabase_service.dart';
+import 'package:dell_photobooth_2025/workflow/workflow.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
 class FaceCaptureScreen extends StatefulWidget {
   const FaceCaptureScreen({super.key});
@@ -27,11 +32,10 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   Timer? _countdownTimer;
   String _captureMode = 'waiting'; // 'waiting', 'palm', 'manual'
   bool _palmDetected = false;
+  bool _isProcessing = false; // Add flag to prevent re-processing
 
-  final PythonHandDetectionService _handDetectionService =
-      PythonHandDetectionService();
   StreamSubscription<bool>? _palmDetectionSubscription;
-  Timer? _frameGrabTimer;
+  HandDetectionService? _jsHandDetection;
 
   @override
   void initState() {
@@ -41,33 +45,34 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   }
 
   Future<void> _initializeHandDetection() async {
-    // Check if Python service is running
-    final isHealthy = await _handDetectionService.checkHealth();
-    if (isHealthy) {
-      debugPrint('Python hand detection service is running');
+    // Always use JavaScript-based detection for both local and production
+    debugPrint('Initializing JavaScript-based palm detection');
 
-      // Listen for palm detection
-      _palmDetectionSubscription = _handDetectionService.palmDetectionStream
-          .listen((detected) {
-            if (detected && !_isCapturing && _countdown == 0) {
-              _startPalmCapture();
-            }
-          });
+    try {
+      _jsHandDetection = HandDetectionService();
+      await _jsHandDetection!.initialize();
 
-      // Start periodic frame capture for palm detection
-      _startFrameCapture();
-    } else {
-      debugPrint('Python hand detection service is not running');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Palm detection service not available. Use manual capture.',
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
+      // Listen for palm detection from JavaScript
+      _palmDetectionSubscription = _jsHandDetection!.palmDetectionStream.listen(
+        (detected) {
+          if (detected && !_isCapturing && _countdown == 0) {
+            _startPalmCapture();
+          }
+        },
+      );
+
+      debugPrint('JavaScript hand detection initialized successfully');
+
+      // Start processing video frames after camera is initialized
+      if (_cameraController != null && _cameraController!.value.isInitialized) {
+        _startJSFrameProcessing();
       }
+
+      // Note: JavaScript detection works with the camera preview directly
+      // The hand_detector.js will process frames from the video element
+    } on Exception catch (e) {
+      debugPrint('Failed to initialize JavaScript hand detection: $e');
+      // Palm detection won't work, but manual capture button is still available
     }
   }
 
@@ -95,7 +100,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
           });
 
           // Initialize hand detection after camera is ready
-          _initializeHandDetection();
+          await _initializeHandDetection();
         }
       }
     } on Exception catch (e) {
@@ -111,25 +116,34 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     }
   }
 
-  void _startFrameCapture() {
-    // Capture frames periodically and send to Python service
-    _frameGrabTimer = Timer.periodic(const Duration(milliseconds: 500), (
-      _,
-    ) async {
-      if (!_isCapturing &&
-          _countdown == 0 &&
-          _cameraController != null &&
-          _cameraController!.value.isInitialized) {
-        try {
-          // Take a picture for analysis
-          final XFile photo = await _cameraController!.takePicture();
-          final Uint8List imageBytes = await photo.readAsBytes();
+  void _startJSFrameProcessing() {
+    // For JavaScript-based detection, we need to connect the video element
+    // The JavaScript handDetector will process frames directly from the camera preview
+    debugPrint('Starting JavaScript frame processing...');
 
-          // Send to Python service for palm detection
-          await _handDetectionService.detectPalm(imageBytes);
-        } on Exception {
-          // Silently ignore errors in frame capture for detection
+    // Wait a bit for the video element to be rendered in the DOM
+    Future.delayed(const Duration(milliseconds: 500), () {
+      try {
+        // Get the video element from the DOM
+        final videoElements = html.document.getElementsByTagName('video');
+        if (videoElements.isNotEmpty) {
+          final videoElement = videoElements[0] as html.VideoElement;
+          _jsHandDetection?.startProcessing(videoElement);
+          debugPrint('Started JavaScript frame processing with video element');
+        } else {
+          debugPrint('No video element found in DOM, retrying...');
+          // Retry after another delay
+          Future.delayed(const Duration(milliseconds: 500), () {
+            final retryElements = html.document.getElementsByTagName('video');
+            if (retryElements.isNotEmpty) {
+              final videoElement = retryElements[0] as html.VideoElement;
+              _jsHandDetection?.startProcessing(videoElement);
+              debugPrint('Started JavaScript frame processing on retry');
+            }
+          });
         }
+      } on Exception catch (e) {
+        debugPrint('Error starting JavaScript frame processing: $e');
       }
     });
   }
@@ -156,6 +170,27 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     });
   }
 
+  // void _startManualCapture() {
+  //   setState(() {
+  //     _captureMode = 'manual';
+  //     _countdown = 3;
+  //   });
+
+  //   _countdownTimer?.cancel();
+  //   _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+  //     if (mounted) {
+  //       setState(() {
+  //         _countdown--;
+  //       });
+
+  //       if (_countdown <= 0) {
+  //         timer.cancel();
+  //         _capturePhoto();
+  //       }
+  //     }
+  //   });
+  // }
+
   Future<void> _capturePhoto() async {
     if (_cameraController == null ||
         !_cameraController!.value.isInitialized ||
@@ -175,8 +210,8 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         // Store the image in the provider
         context.read<UserSelectionModel>().setCapturedImage(imageBytes);
 
-        // Navigate to the next screen or show preview
-        _showCapturedImage(imageBytes);
+        // Directly start processing without showing preview
+        await _navigateToResults();
       }
     } on Exception catch (e) {
       debugPrint('Error capturing photo: $e');
@@ -197,169 +232,51 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     }
   }
 
-  void _showCapturedImage(Uint8List imageBytes) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            width: 600,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0A5F63),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Photo Captured!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    imageBytes,
-                    width: 400,
-                    height: 400,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _retakePhoto();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 30,
-                          vertical: 15,
-                        ),
-                      ),
-                      child: const Text(
-                        'Retake',
-                        style: TextStyle(fontSize: 20),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        // Navigate to next screen (results/processing)
-                        _navigateToResults();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 30,
-                          vertical: 15,
-                        ),
-                      ),
-                      child: const Text(
-                        'Continue',
-                        style: TextStyle(fontSize: 20),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _retakePhoto() {
-    setState(() {
-      _countdown = 0;
-      _captureMode = 'waiting';
-      _palmDetected = false;
-    });
-  }
-
   Future<void> _navigateToResults() async {
+    // Prevent re-processing if already processing
+    if (_isProcessing) {
+      debugPrint('Already processing, skipping...');
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
     final selections = context.read<UserSelectionModel>().toMap();
     debugPrint('User selections: $selections');
 
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Dialog(
-          backgroundColor: Colors.transparent,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: Colors.white),
-                SizedBox(height: 20),
-                Text(
-                  'Processing your transformation...',
-                  style: TextStyle(color: Colors.white, fontSize: 18),
-                ),
-              ],
-            ),
+    // Check if this is LinkedIn mode
+    final userModel = context.read<UserSelectionModel>();
+    final isLinkedIn = userModel.category == 'linkedin';
+
+    // Stop hand detection before navigating
+    _jsHandDetection?.stopProcessing();
+
+    // Navigate to processing screen with appropriate processor
+    if (mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => ProcessingScreen(
+            onProcess: isLinkedIn ? _processLinkedIn : _processWithRunpod,
           ),
-        );
-      },
-    );
+        ),
+      );
 
-    try {
-      // Send image to backend for processing
-      final result = await _sendImageToBackend();
-
+      // Reset processing flag and restart hand detection when returning from processing screen
       if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-
-        if (result != null) {
-          // Navigate to output screen with processed image
-          final userModel = context.read<UserSelectionModel>();
-          final imageUrl = userModel.processedImageUrl ?? '';
-
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => OutputScreen(
-                imageUrl: imageUrl.isNotEmpty
-                    ? imageUrl
-                    : 'data:image/jpeg;base64,${base64Encode(result)}',
-                imageBytes: result,
-              ),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to process transformation'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } on Exception catch (e) {
-      if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        setState(() {
+          _isProcessing = false;
+        });
+        // Restart hand detection
+        _jsHandDetection?.startProcessing(
+          html.document.getElementsByTagName('video')[0] as html.VideoElement,
         );
       }
     }
   }
 
-  Future<Uint8List?> _sendImageToBackend() async {
+  Future<String?> _processWithRunpod() async {
     try {
       final userModel = context.read<UserSelectionModel>();
       final capturedImage = userModel.capturedImage;
@@ -369,105 +286,246 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      // Convert captured image to base64
-      final base64SourceImage = base64Encode(capturedImage);
-
-      // Fetch random character image from Supabase
-      debugPrint('Fetching character image from Supabase...');
-      final gender = userModel.gender ?? 'male';
-      final characterImage = await SupabaseService.getRandomCharacterImage(
-        gender,
+      // Step 1: Upload image to Supabase bucket "outputimages"
+      debugPrint('Uploading image to Supabase...');
+      final imageUrl = await SupabaseService().uploadImageBytes(
+        capturedImage,
+        null,
+        bucket: 'outputimages',
+        prefix: 'user_',
       );
 
-      if (characterImage == null) {
-        debugPrint('Failed to fetch character image from Supabase');
-        // Continue without face swap
-        final requestData = {
-          'captured_image': 'data:image/jpeg;base64,$base64SourceImage',
-          'transformation_type': 'None',
-          'gender': gender,
-          'name': userModel.userName ?? 'Guest',
-          'email': userModel.userEmail ?? 'guest@example.com',
-        };
-
-        final response = await http
-            .post(
-              Uri.parse('http://localhost:5555/api/process-photo'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(requestData),
-            )
-            .timeout(const Duration(seconds: 30));
-
-        if (response.statusCode == 200) {
-          final responseData = jsonDecode(response.body);
-          if (responseData['success'] == true &&
-              responseData['image_url'] != null) {
-            userModel.setProcessedImageUrl(responseData['image_url']);
-          }
-          return response.bodyBytes;
-        }
+      if (imageUrl == null) {
+        debugPrint('Failed to upload image to Supabase');
         return null;
       }
 
-      debugPrint('Character image fetched: ${characterImage.length} bytes');
+      debugPrint('Image uploaded: $imageUrl');
 
-      // Convert character image to base64
-      final base64TargetImage = base64Encode(characterImage);
+      // Step 2: Store participant details in table
+      final uniqueId = const Uuid().v4();
+      final name = userModel.userName ?? 'Guest';
+      final email = userModel.userEmail ?? 'guest@example.com';
+      final gender = userModel.gender ?? 'male';
 
-      // Prepare request data with both images
-      final requestData = {
-        'source_image': 'data:image/jpeg;base64,$base64SourceImage',
-        'target_image': 'data:image/png;base64,$base64TargetImage',
-        'transformation_type':
-            userModel.transformationType ?? 'AI Transformation',
+      // Store in the event_output_images table
+      await SupabaseService.client.from('event_output_images').insert({
+        'unique_id': uniqueId,
+        'name': name,
+        'email': email,
         'gender': gender,
-        'name': userModel.userName ?? 'Guest',
-        'email': userModel.userEmail ?? 'guest@example.com',
-      };
+        'image_url': imageUrl,
+        'created_at': DateTime.now().toIso8601String(),
+      });
 
-      // Send to backend
-      final response = await http
-          .post(
-            Uri.parse('http://localhost:5555/api/process-photo'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(requestData),
-          )
-          .timeout(const Duration(seconds: 30));
+      debugPrint('Stored participant details with unique_id: $uniqueId');
 
-      if (response.statusCode == 200) {
-        debugPrint('Image processed successfully');
+      // Step 3: Load and update workflow JSON
+      final workflow = await Workflow.getWorkflow('swaplabonline.json');
 
-        // Parse response to get image URL
-        final responseData = jsonDecode(response.body);
-        if (responseData['success'] == true &&
-            responseData['image_url'] != null) {
-          // Store the URL in the model
-          userModel.setProcessedImageUrl(responseData['image_url']);
+      // Ensure correct Supabase credentials are used
+      workflow.updateSupabaseCredentials(
+        SupabaseService.supabaseUrl,
+        SupabaseService.supabaseAnonKey,
+      );
 
-          // If it's a base64 image, return the bytes
-          if (responseData['image_url'].startsWith('data:image')) {
-            final base64String = responseData['image_url'].split(',').last;
-            return base64Decode(base64String);
+      // Update unique_id in the workflow
+      workflow.updateSupabaseWatcherNode(uniqueId, nodeId: '44');
+
+      // Update noise seed with timestamp
+      final seed = DateTime.now().millisecondsSinceEpoch;
+      workflow.updateNoiseSeed(seed);
+
+      // Step 4: Select random character image and update table
+      debugPrint('Selecting random character image...');
+      // Use transformationOption (the actual selected item) instead of transformationType (the section)
+      final transformationType =
+          userModel.transformationOption ??
+          userModel.transformationType ??
+          'AI Transformation';
+
+      debugPrint('Raw transformation type from model: "$transformationType"');
+      debugPrint(
+        'TransformationType (section): "${userModel.transformationType}"',
+      );
+      debugPrint(
+        'TransformationOption (selected): "${userModel.transformationOption}"',
+      );
+
+      // Map transformation type to theme name for character selection
+      final themeName = _getThemeNameFromTransformation(transformationType);
+      debugPrint('Mapped theme name: "$themeName"');
+
+      await SupabaseService().selectAndUpdateRandomCharacterImage(
+        uniqueId: uniqueId,
+        gender: gender,
+        themeName: themeName,
+      );
+
+      // Step 5: Send workflow to Runpod
+      debugPrint('Sending workflow to Runpod...');
+
+      // Debug: Print the workflow to verify URLs
+      final workflowMap = workflow.toMap();
+      debugPrint('Workflow Supabase URLs:');
+      workflowMap.forEach((key, value) {
+        if (value is Map && value['inputs'] is Map) {
+          final inputs = value['inputs'] as Map;
+          if (inputs.containsKey('supabase_url')) {
+            debugPrint('Node $key: supabase_url = ${inputs['supabase_url']}');
           }
         }
+      });
 
-        return response.bodyBytes;
+      await RunPodService.triggerRunPodWorkflow(
+        workflow: workflowMap,
+        apiUrl: AppConfig.runpodEndpointUrl,
+        apiKey: AppConfig.runpodApiKey,
+      );
+
+      debugPrint('Workflow sent to Runpod successfully');
+
+      // Step 6: Poll for output image
+      debugPrint('Polling for output image...');
+      const maxAttempts = 60; // 3 minutes with 3-second intervals
+      const pollInterval = Duration(seconds: 3);
+
+      bool foundImage = false;
+
+      for (int i = 0; i < maxAttempts; i++) {
+        // Check if we should stop polling (e.g., user navigated away)
+        if (!mounted) {
+          debugPrint('Widget no longer mounted, stopping polling');
+          break;
+        }
+
+        await Future.delayed(pollInterval);
+
+        // Check if output image is available
+        final outputImage = await SupabaseService().getLatestOutputImage(
+          uniqueId,
+        );
+
+        if (outputImage != null && outputImage.isNotEmpty) {
+          debugPrint('Output image received: $outputImage');
+          // Store the processed image URL in the model
+          userModel.setProcessedImageUrl(outputImage);
+          foundImage = true;
+          return outputImage;
+        }
+
+        debugPrint('Polling attempt ${i + 1}/$maxAttempts');
+      }
+
+      if (!foundImage) {
+        debugPrint('Timeout waiting for output image');
+      }
+      return null;
+    } on Exception catch (e) {
+      debugPrint('Error in Runpod workflow processing: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _processLinkedIn() async {
+    try {
+      final userModel = context.read<UserSelectionModel>();
+      final capturedImage = userModel.capturedImage;
+
+      if (capturedImage == null) {
+        debugPrint('No captured image available');
+        return null;
+      }
+
+      debugPrint('Processing LinkedIn professional headshot...');
+
+      // Process with LinkedIn service (only background removal with white background)
+      final processedImageUrl =
+          await LinkedInProcessingService.processLinkedInPhoto(
+            imageBytes: capturedImage,
+            backgroundType: 'white', // Clean white background
+            enhanceSkin: false, // No skin smoothing
+            autoEnhance: false, // No enhancements
+          );
+
+      if (processedImageUrl != null) {
+        debugPrint('LinkedIn photo processed successfully: $processedImageUrl');
+        // Store the processed image URL in the model
+        userModel.setProcessedImageUrl(processedImageUrl);
+        return processedImageUrl;
       } else {
-        debugPrint('Backend error: ${response.statusCode}');
+        debugPrint('Failed to process LinkedIn photo');
         return null;
       }
     } on Exception catch (e) {
-      debugPrint('Error sending image to backend: $e');
+      debugPrint('Error in LinkedIn processing: $e');
       return null;
     }
+  }
+
+  String _getThemeNameFromTransformation(String transformationType) {
+    // Map transformation types to theme folder names in Supabase
+    // These must match exactly with the folder names in the themes bucket
+    // Clean up the transformation type first (remove extra spaces, normalize)
+    final cleanedType = transformationType.trim();
+
+    final Map<String, String> transformationToTheme = {
+      // From TransformationScreen options (with spaces from \n replacement)
+      'Sustainability Champions': 'sustainability_champions',
+      'Futuristic Workspace': 'futuristic_workspace',
+      'Cyberpunk Future': 'cyberpunk_future',
+      'Space Explorer': 'space_explorer',
+      'Extreme Sports': 'extreme_sports',
+      'Fantasy Kingdom': 'fantasy_kingdom',
+      // Section names (in case they get passed)
+      'Professional Edge': 'futuristic_workspace',
+      'Futuristic Vision': 'cyberpunk_future',
+      'Playful Fun': 'extreme_sports',
+      // Legacy/fallback mappings
+      'AI Transformation': 'futuristic_workspace',
+    };
+
+    debugPrint(
+      'Mapping transformation "$cleanedType" to theme: ${transformationToTheme[cleanedType]}',
+    );
+
+    // If no exact match found, try to find a partial match
+    String? matchedTheme = transformationToTheme[cleanedType];
+
+    if (matchedTheme == null) {
+      // Try case-insensitive partial matching
+      final lowerType = cleanedType.toLowerCase();
+
+      if (lowerType.contains('sustainability')) {
+        matchedTheme = 'sustainability_champions';
+      } else if (lowerType.contains('futuristic') ||
+          lowerType.contains('workspace')) {
+        matchedTheme = 'futuristic_workspace';
+      } else if (lowerType.contains('cyberpunk')) {
+        matchedTheme = 'cyberpunk_future';
+      } else if (lowerType.contains('space')) {
+        matchedTheme = 'space_explorer';
+      } else if (lowerType.contains('extreme') ||
+          lowerType.contains('sports')) {
+        matchedTheme = 'extreme_sports';
+      } else if (lowerType.contains('fantasy')) {
+        matchedTheme = 'fantasy_kingdom';
+      }
+    }
+
+    debugPrint(
+      'Final matched theme: ${matchedTheme ?? "futuristic_workspace (fallback)"}',
+    );
+
+    return matchedTheme ?? 'futuristic_workspace';
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
-    _frameGrabTimer?.cancel();
     _palmDetectionSubscription?.cancel();
-    _handDetectionService.dispose();
+    _jsHandDetection?.stopProcessing();
+    _jsHandDetection?.dispose();
     _cameraController?.dispose();
     super.dispose();
   }
@@ -496,15 +554,16 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
             // Main Content
             Center(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
                     "Snap your shot",
                     style: TextStyle(
-                      fontSize: 72,
-                      fontWeight: FontWeight.w200,
+                      fontSize: 76,
+                      fontWeight: FontWeight.w300,
                       height: 1.1,
-                      color: Colors.white,
+                      color: AppColors.white,
                     ),
                   ),
                   const SizedBox(height: 40),
@@ -544,7 +603,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                                             style: const TextStyle(
                                               fontSize: 120,
                                               fontWeight: FontWeight.bold,
-                                              color: Colors.white,
+                                              color: AppColors.white,
                                             ),
                                           ),
                                           if (_captureMode == 'palm')
@@ -552,44 +611,13 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                                               '✋ Palm Detected!',
                                               style: TextStyle(
                                                 fontSize: 24,
-                                                color: Colors.white,
+                                                color: AppColors.white,
                                               ),
                                             ),
                                         ],
                                       ),
                                     ),
                                   ),
-
-                                // Status indicator
-                                Positioned(
-                                  top: 20,
-                                  left: 20,
-                                  right: 20,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      _captureMode == 'palm'
-                                          ? '✋ Capturing...'
-                                          : _captureMode == 'manual'
-                                          ? '📸 Manual Capture'
-                                          : '✋ Show your palm or click capture',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ),
                               ],
                             )
                           : const Center(
@@ -600,43 +628,16 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 40),
 
                   // Instructions
                   const Text(
-                    "Show your open palm to the camera to trigger capture",
+                    "Show your open palm\nto capture photo",
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 52,
                       fontWeight: FontWeight.w300,
-                      color: Colors.white70,
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // Back Button
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 18,
-                        horizontal: 36,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Image.asset("assets/icons/arrow-back.png", width: 40),
-                        const SizedBox(width: 12),
-                        const Text(
-                          "Back",
-                          style: TextStyle(
-                            fontSize: 48,
-                            fontWeight: FontWeight.w500,
-                            height: 1.1,
-                          ),
-                        ),
-                      ],
+                      color: AppColors.white,
+                      height: 1.1,
                     ),
                   ),
                 ],

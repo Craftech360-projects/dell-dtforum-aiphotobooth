@@ -1,3 +1,4 @@
+import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/screens/category_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -32,12 +33,12 @@ class WelcomeScreen extends StatelessWidget {
                     "Redefine\nwhat's real.",
                     style: TextStyle(
                       fontSize: 150,
-                      fontWeight: FontWeight.w200,
+                      fontWeight: FontWeight.w300,
                       height: 1.1,
                     ),
                   ),
                   const SizedBox(height: 35),
-                  Container(width: 169, height: 45, color: Colors.white),
+                  Container(width: 169, height: 45, color: AppColors.white),
                   const SizedBox(height: 60),
                   const Text(
                     "AI transforms your photo\ninto worlds of play, art, and\nwonder - instantly.",

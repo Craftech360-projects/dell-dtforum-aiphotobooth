@@ -1,0 +1,46 @@
+# Python service (local only)
+python_service/
+*.sh
+*.py
+!api/*.py
+
+# Flutter development files
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+*.dart.js.deps
+*.dart.js.tar.gz
+
+# Documentation
+*.md
+!README.md
+
+# Version control
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# macOS
+.DS_Store
+
+# Testing
+test/
+integration_test/
+
+# Build artifacts (except web)
+build/
+!build/web/
+
+# iOS/Android (not needed for web)
+ios/
+android/
+windows/
+linux/
+macos/

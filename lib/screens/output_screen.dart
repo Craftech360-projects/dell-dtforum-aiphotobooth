@@ -1,19 +1,17 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
+import 'package:dell_photobooth_2025/core/app_colors.dart';
+import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 
 class OutputScreen extends StatefulWidget {
   final String imageUrl;
   final Uint8List? imageBytes;
 
-  const OutputScreen({
-    super.key,
-    required this.imageUrl,
-    this.imageBytes,
-  });
+  const OutputScreen({super.key, required this.imageUrl, this.imageBytes});
 
   @override
   State<OutputScreen> createState() => _OutputScreenState();
@@ -37,7 +35,7 @@ class _OutputScreenState extends State<OutputScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/background-two.png"),
+            image: AssetImage("assets/images/background-one.png"),
             fit: BoxFit.cover,
           ),
         ),
@@ -47,10 +45,7 @@ class _OutputScreenState extends State<OutputScreen> {
             Positioned(
               left: 93,
               top: 104,
-              child: Image.asset(
-                "assets/images/dell-logo.png",
-                width: 192,
-              ),
+              child: Image.asset("assets/images/dell-logo.png", width: 192),
             ),
 
             // Main Content
@@ -58,31 +53,25 @@ class _OutputScreenState extends State<OutputScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  const SizedBox(height: 80),
                   // Title
                   const Text(
-                    "Here's your",
+                    "Here's your new look.",
                     style: TextStyle(
-                      fontSize: 72,
-                      fontWeight: FontWeight.w200,
+                      fontSize: 76,
+                      fontWeight: FontWeight.w300,
                       height: 1.1,
-                      color: Colors.white,
+                      color: AppColors.white,
                     ),
                   ),
-                  const Text(
-                    "new look.",
-                    style: TextStyle(
-                      fontSize: 72,
-                      fontWeight: FontWeight.w200,
-                      height: 1.1,
-                      color: Colors.white,
-                    ),
-                  ),
+
                   const SizedBox(height: 40),
 
-                  // Image Display
+                  // Image Display - adjusted for 4800x7200 (2:3 aspect ratio)
                   Container(
-                    width: 500,
-                    height: 600,
+                    width: 700,
+                    height:
+                        1050, // Adjusted height to match 2:3 aspect ratio (700 * 1.5)
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
@@ -104,18 +93,18 @@ class _OutputScreenState extends State<OutputScreen> {
                     children: [
                       // QR Code
                       Container(
-                        width: 150,
-                        height: 150,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
+                        width: 200,
+                        height: 200,
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.zero,
                         ),
                         child: QrImageView(
                           data: _getQrData(),
                           version: QrVersions.auto,
-                          size: 130,
-                          backgroundColor: Colors.white,
+                          size: 150,
+                          backgroundColor: AppColors.white,
                           errorCorrectionLevel: QrErrorCorrectLevel.L,
                         ),
                       ),
@@ -126,41 +115,34 @@ class _OutputScreenState extends State<OutputScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            "Scan the QR code to",
+                            "Scan the QR code to\ndownload the image",
                             style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w300,
-                              color: Colors.white,
+                              fontSize: 40,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.white,
                             ),
                           ),
-                          const Text(
-                            "download the image",
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w300,
-                              color: Colors.white,
-                            ),
-                          ),
+
                           const SizedBox(height: 20),
 
                           // Home Button
                           ElevatedButton(
                             onPressed: _isLoading ? null : _navigateToHome,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: const Color(0xFF0A5F63),
+                              backgroundColor: AppColors.white,
+                              foregroundColor: AppColors.black,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 60,
-                                vertical: 20,
+                                vertical: 16,
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.zero,
                               ),
                             ),
                             child: const Text(
                               "Home",
                               style: TextStyle(
-                                fontSize: 32,
+                                fontSize: 44,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -178,9 +160,7 @@ class _OutputScreenState extends State<OutputScreen> {
               bottom: 40,
               left: 0,
               right: 0,
-              child: Center(
-                child: _buildCountdownTimer(),
-              ),
+              child: Center(child: _buildCountdownTimer()),
             ),
           ],
         ),
@@ -204,7 +184,7 @@ class _OutputScreenState extends State<OutputScreen> {
       // Display from bytes if available
       return Image.memory(
         widget.imageBytes!,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain, // Changed to contain to show full image
         errorBuilder: (context, error, stackTrace) {
           return _buildImageFromUrl();
         },
@@ -222,39 +202,31 @@ class _OutputScreenState extends State<OutputScreen> {
         final bytes = base64Decode(base64String);
         return Image.memory(
           bytes,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain, // Changed to contain to show full image
           errorBuilder: (context, error, stackTrace) {
             return const Center(
-              child: Icon(
-                Icons.broken_image,
-                size: 100,
-                color: Colors.white54,
-              ),
+              child: Icon(Icons.broken_image, size: 100, color: Colors.white54),
             );
           },
         );
       } on Exception catch (e) {
         debugPrint('Error decoding base64 image: $e');
         return const Center(
-          child: Icon(
-            Icons.broken_image,
-            size: 100,
-            color: Colors.white54,
-          ),
+          child: Icon(Icons.broken_image, size: 100, color: Colors.white54),
         );
       }
     } else {
       // Handle URL image
       return Image.network(
         widget.imageUrl,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain, // Changed to contain to show full image
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return Center(
             child: CircularProgressIndicator(
               value: loadingProgress.expectedTotalBytes != null
                   ? loadingProgress.cumulativeBytesLoaded /
-                      loadingProgress.expectedTotalBytes!
+                        loadingProgress.expectedTotalBytes!
                   : null,
               color: const Color(0xFF0B7C84),
             ),
@@ -262,11 +234,7 @@ class _OutputScreenState extends State<OutputScreen> {
         },
         errorBuilder: (context, error, stackTrace) {
           return const Center(
-            child: Icon(
-              Icons.broken_image,
-              size: 100,
-              color: Colors.white54,
-            ),
+            child: Icon(Icons.broken_image, size: 100, color: Colors.white54),
           );
         },
       );
@@ -278,7 +246,7 @@ class _OutputScreenState extends State<OutputScreen> {
       stream: _countdownStream,
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
-        
+
         final seconds = snapshot.data!;
         if (seconds <= 0) {
           // Auto navigate to home after countdown
@@ -289,22 +257,16 @@ class _OutputScreenState extends State<OutputScreen> {
           });
           return const SizedBox.shrink();
         }
-        
+
         return Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 10,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
             'Returning to home in ${seconds}s',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-            ),
+            style: const TextStyle(color: AppColors.white, fontSize: 18),
           ),
         );
       },
@@ -312,8 +274,8 @@ class _OutputScreenState extends State<OutputScreen> {
   }
 
   Stream<int> _createCountdownStream() async* {
-    // 30 second countdown
-    for (int i = 30; i >= 0; i--) {
+    // 120 second countdown
+    for (int i = 120; i >= 0; i--) {
       yield i;
       await Future.delayed(const Duration(seconds: 1));
     }
@@ -321,7 +283,7 @@ class _OutputScreenState extends State<OutputScreen> {
 
   void _navigateToHome() {
     if (_isLoading) return;
-    
+
     setState(() {
       _isLoading = true;
     });
@@ -331,9 +293,8 @@ class _OutputScreenState extends State<OutputScreen> {
     userModel.clearAll();
 
     // Navigate to home and remove all previous routes
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      '/',
-      (Route<dynamic> route) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
   }
 }

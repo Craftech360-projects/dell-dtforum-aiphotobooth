@@ -1,7 +1,6 @@
 import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:dell_photobooth_2025/screens/gender_screen.dart';
-import 'package:dell_photobooth_2025/screens/transformation_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -35,7 +34,7 @@ class CategoryScreen extends StatelessWidget {
                   "What's your\ntransformation\nvibe today?",
                   style: TextStyle(
                     fontSize: 72,
-                    fontWeight: FontWeight.w200,
+                    fontWeight: FontWeight.w300,
                     height: 1.1,
                   ),
                 ),
@@ -47,13 +46,18 @@ class CategoryScreen extends StatelessWidget {
                     Expanded(
                       child: GestureDetector(
                         onTap: () {
-                          context.read<UserSelectionModel>().setCategory('linkedin');
+                          debugPrint('LinkedIn category selected');
+                          context.read<UserSelectionModel>().setCategory(
+                            'linkedin',
+                          );
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const GenderScreen(),
                             ),
-                          );
+                          ).then((_) {
+                            debugPrint('Returned from GenderScreen');
+                          });
                         },
                         child: Container(
                           padding: const EdgeInsets.all(40),
@@ -77,7 +81,7 @@ class CategoryScreen extends StatelessWidget {
                                 "Snap your\nLinkedIn picture",
                                 style: TextStyle(
                                   fontSize: 40,
-                                  fontWeight: FontWeight.w200,
+                                  fontWeight: FontWeight.w300,
                                   height: 1.1,
                                 ),
                               ),
@@ -96,13 +100,19 @@ class CategoryScreen extends StatelessWidget {
                     Expanded(
                       child: GestureDetector(
                         onTap: () {
-                          context.read<UserSelectionModel>().setCategory('ai_transformation');
+                          debugPrint('AI Transformation category selected');
+                          context.read<UserSelectionModel>().setCategory(
+                            'ai_transformation',
+                          );
+                          // Navigate to Gender screen first, then to Transformation screen
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const TransformationScreen(),
+                              builder: (context) => const GenderScreen(),
                             ),
-                          );
+                          ).then((_) {
+                            debugPrint('Returned from GenderScreen');
+                          });
                         },
                         child: Container(
                           padding: const EdgeInsets.all(40),
@@ -126,7 +136,7 @@ class CategoryScreen extends StatelessWidget {
                                 "AI\nTransformation",
                                 style: TextStyle(
                                   fontSize: 40,
-                                  fontWeight: FontWeight.w200,
+                                  fontWeight: FontWeight.w300,
                                   height: 1.1,
                                 ),
                               ),
@@ -147,7 +157,7 @@ class CategoryScreen extends StatelessWidget {
                 const SizedBox(height: 360),
 
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () => Navigator.of(context).pop(),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       vertical: 18,

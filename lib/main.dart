@@ -1,3 +1,4 @@
+import 'package:dell_photobooth_2025/config/app_config.dart';
 import 'package:dell_photobooth_2025/core/app_theme.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:dell_photobooth_2025/screens/welcome_screen.dart';
@@ -7,6 +8,9 @@ import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize environment variables
+  await AppConfig.initialize();
 
   // Initialize Supabase
   try {

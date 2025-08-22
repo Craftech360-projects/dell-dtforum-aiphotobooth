@@ -2,6 +2,7 @@
 """
 Hand Detection Service for Dell Photobooth
 Uses MediaPipe to detect hand gestures and trigger photo capture
+Also provides LinkedIn-style professional headshot processing
 """
 
 import cv2
@@ -15,13 +16,15 @@ from PIL import Image
 import threading
 import time
 import logging
+from linkedin_processor import LinkedInProcessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=['http://localhost:8080', 'http://127.0.0.1:8080'])
+# Allow all origins for development - restrict in production
+CORS(app, origins='*', allow_headers=['Content-Type'], methods=['GET', 'POST', 'OPTIONS'])
 
 # Initialize MediaPipe
 mp_hands = mp.solutions.hands
@@ -141,6 +144,9 @@ class HandDetector:
 # Global detector instance
 detector = HandDetector()
 
+# Global LinkedIn processor instance
+linkedin_processor = LinkedInProcessor()
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -210,12 +216,109 @@ def test_camera():
             'error': str(e)
         })
 
+@app.route('/process_linkedin', methods=['POST'])
+def process_linkedin():
+    """
+    Process image for LinkedIn-style professional headshot
+    Expects base64 encoded image in request body
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'image' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'No image data provided'
+            }), 400
+        
+        # Get image data
+        image_data = data['image']
+        
+        # Get processing options (with defaults)
+        background_type = data.get('background_type', 'gradient_gray')
+        enhance_skin = data.get('enhance_skin', True)
+        auto_enhance = data.get('auto_enhance', True)
+        
+        # Remove data URL prefix if present
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        # Decode base64 image
+        image_bytes = base64.b64decode(image_data)
+        
+        logger.info(f"Processing LinkedIn headshot with background: {background_type}")
+        
+        # Process the image
+        processed_image = linkedin_processor.process_image(
+            image_bytes,
+            background_type=background_type,
+            enhance_skin=enhance_skin,
+            auto_enhance=auto_enhance
+        )
+        
+        return jsonify({
+            'success': True,
+            'image': f'data:image/jpeg;base64,{processed_image}',
+            'message': 'LinkedIn headshot processed successfully',
+            'timestamp': time.time()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in process_linkedin: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/quick_enhance', methods=['POST'])
+def quick_enhance():
+    """
+    Quick enhancement without background removal
+    For photos that already have good backgrounds
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'image' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'No image data provided'
+            }), 400
+        
+        image_data = data['image']
+        
+        # Remove data URL prefix if present
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        # Decode base64 image
+        image_bytes = base64.b64decode(image_data)
+        
+        # Process the image
+        enhanced_image = linkedin_processor.process_quick_enhance(image_bytes)
+        
+        return jsonify({
+            'success': True,
+            'image': f'data:image/jpeg;base64,{enhanced_image}',
+            'message': 'Image enhanced successfully',
+            'timestamp': time.time()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in quick_enhance: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
-    logger.info("Starting Hand Detection Service on port 5555...")
+    logger.info("Starting Hand Detection & LinkedIn Processing Service on port 5555...")
     logger.info("Endpoints:")
     logger.info("  - POST /detect_palm - Detect palm in base64 image")
     logger.info("  - POST /reset - Reset detector state")
     logger.info("  - GET /health - Health check")
     logger.info("  - GET /test_camera - Test camera access")
+    logger.info("  - POST /process_linkedin - Process LinkedIn professional headshot")
+    logger.info("  - POST /quick_enhance - Quick image enhancement")
     
     app.run(host='0.0.0.0', port=5555, debug=True)

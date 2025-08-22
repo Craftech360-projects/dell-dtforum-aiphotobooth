@@ -3,9 +3,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:dell_photobooth_2025/services/environment_service.dart';
 
 class PythonHandDetectionService {
-  static const String baseUrl = 'http://localhost:5555';
+  static String get baseUrl => EnvironmentService.apiBaseUrl;
   static final PythonHandDetectionService _instance = PythonHandDetectionService._internal();
   
   factory PythonHandDetectionService() => _instance;
@@ -23,7 +24,7 @@ class PythonHandDetectionService {
   Future<bool> checkHealth() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/health'),
+        Uri.parse(EnvironmentService.getEndpoint('/health')),
       ).timeout(const Duration(seconds: 2));
       
       if (response.statusCode == 200) {
@@ -43,7 +44,7 @@ class PythonHandDetectionService {
       final base64Image = base64Encode(imageBytes);
       
       final response = await http.post(
-        Uri.parse('$baseUrl/detect_palm'),
+        Uri.parse(EnvironmentService.getEndpoint('/detect_palm')),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'image': 'data:image/jpeg;base64,$base64Image',
@@ -95,7 +96,7 @@ class PythonHandDetectionService {
   
   Future<void> reset() async {
     try {
-      await http.post(Uri.parse('$baseUrl/reset'));
+      await http.post(Uri.parse(EnvironmentService.getEndpoint('/reset')));
     } on Exception catch (e) {
       debugPrint('Error resetting detector: $e');
     }

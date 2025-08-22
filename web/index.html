@@ -32,7 +32,7 @@
   <title>Dell AI Photobooth 2025</title>
   <link rel="manifest" href="manifest.json">
   
-  <!-- MediaPipe for hand detection (Updated version) -->
+  <!-- MediaPipe for hand detection -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -53,8 +53,16 @@
       init: function() {
         if (this.isInitialized) return;
         
+        // Check if Hands is available
+        if (typeof window.Hands === 'undefined') {
+          console.error('MediaPipe Hands library not loaded yet');
+          // Retry after a delay
+          setTimeout(() => this.init(), 500);
+          return;
+        }
+        
         try {
-          this.hands = new Hands({
+          this.hands = new window.Hands({
             locateFile: (file) => {
               return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
             }
@@ -80,19 +88,20 @@
         try {
           if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const landmarks = results.multiHandLandmarks[0];
-            console.log('Hand landmarks detected:', landmarks.length);
+            console.log('Hand detected with', landmarks.length, 'landmarks');
             
             // Check if palm is open (all fingers extended)
             const isPalmOpen = this.checkPalmOpen(landmarks);
-            console.log('Palm open status:', isPalmOpen);
+            console.log('Palm open:', isPalmOpen);
             
             if (isPalmOpen && !this.palmDetected) {
               this.palmDetected = true;
+              
               // Trigger palm detection event
               window.dispatchEvent(new CustomEvent('palmDetected'));
               console.log('🖐️ Palm detected! Triggering capture...');
               
-              // Reset after 3 seconds to avoid multiple triggers
+              // Reset after 3 seconds to allow new captures
               setTimeout(() => {
                 this.palmDetected = false;
                 console.log('Palm detection reset');
@@ -114,17 +123,19 @@
         
         let extendedFingers = 0;
         for (let i = 0; i < fingerTips.length; i++) {
-          if (landmarks[fingerTips[i]].y < landmarks[fingerMCPs[i]].y) {
+          // Check if fingertip is above MCP (with some tolerance)
+          if (landmarks[fingerTips[i]].y < landmarks[fingerMCPs[i]].y + 0.05) {
             extendedFingers++;
           }
         }
         
-        // Check thumb (different logic)
-        if (landmarks[4].x > landmarks[2].x) { // For right hand
+        // Check thumb (different logic) - more lenient
+        if (Math.abs(landmarks[4].x - landmarks[2].x) > 0.05) {
           extendedFingers++;
         }
         
-        return extendedFingers >= 4; // At least 4 fingers extended
+        // More lenient - at least 3 fingers extended
+        return extendedFingers >= 3;
       },
       
       processVideoFrame: async function(videoElement) {
@@ -140,12 +151,22 @@
             return;
           }
           
+          // Send frame to MediaPipe
           await this.hands.send({image: videoElement});
         } catch (error) {
           console.error('Error processing video frame:', error);
         }
       }
     };
+    
+    // Initialize hand detector when page loads
+    window.addEventListener('load', function() {
+      setTimeout(() => {
+        if (window.handDetector && typeof window.handDetector.init === 'function') {
+          window.handDetector.init();
+        }
+      }, 1000);
+    });
   </script>
 </head>
 <body>
