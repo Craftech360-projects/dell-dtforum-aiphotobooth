@@ -1,17 +1,19 @@
 import 'dart:async';
 import 'dart:html' as html;
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
-import 'package:dell_photobooth_2025/config/app_config.dart';
+// import 'package:dell_photobooth_2025/config/app_config.dart'; // Commented out - not needed with Python backend
 import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:dell_photobooth_2025/screens/processing_screen.dart';
 import 'package:dell_photobooth_2025/services/hand_detection_service.dart';
 import 'package:dell_photobooth_2025/services/linkedin_processing_service.dart';
-import 'package:dell_photobooth_2025/services/runpod_service.dart';
+// import 'package:dell_photobooth_2025/services/runpod_service.dart'; // Commented out - using Python backend
+import 'package:dell_photobooth_2025/services/python_backend_service.dart';
 import 'package:dell_photobooth_2025/services/supabase_service.dart';
-import 'package:dell_photobooth_2025/workflow/workflow.dart';
+// import 'package:dell_photobooth_2025/workflow/workflow.dart'; // Commented out - not needed with Python backend
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -211,7 +213,9 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         context.read<UserSelectionModel>().setCapturedImage(imageBytes);
 
         // Directly start processing without showing preview
-        await _navigateToResults();
+        if (mounted) {
+          await _navigateToResults();
+        }
       }
     } on Exception catch (e) {
       debugPrint('Error capturing photo: $e');
@@ -239,15 +243,16 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       return;
     }
 
+    // Store references early to avoid accessing context after disposal
+    final userModel = context.read<UserSelectionModel>();
+    final selections = userModel.toMap();
+    debugPrint('User selections: $selections');
+
     setState(() {
       _isProcessing = true;
     });
 
-    final selections = context.read<UserSelectionModel>().toMap();
-    debugPrint('User selections: $selections');
-
     // Check if this is LinkedIn mode
-    final userModel = context.read<UserSelectionModel>();
     final isLinkedIn = userModel.category == 'linkedin';
 
     // Stop hand detection before navigating
@@ -276,9 +281,12 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     }
   }
 
+  // Modified to use Python backend instead of Runpod
   Future<String?> _processWithRunpod() async {
+    // Store the model reference early to avoid accessing context after disposal
+    final userModel = context.read<UserSelectionModel>();
+    
     try {
-      final userModel = context.read<UserSelectionModel>();
       final capturedImage = userModel.capturedImage;
 
       if (capturedImage == null) {
@@ -286,6 +294,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
+      /* COMMENTED OUT - Original Runpod implementation
       // Step 1: Upload image to Supabase bucket "outputimages"
       debugPrint('Uploading image to Supabase...');
       final imageUrl = await SupabaseService().uploadImageBytes(
@@ -421,6 +430,103 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         debugPrint('Timeout waiting for output image');
       }
       return null;
+      END OF COMMENTED OUT CODE */
+
+      // NEW IMPLEMENTATION - Using Python backend
+      // Step 1: Get user details
+      final name = userModel.userName ?? 'Guest';
+      final email = userModel.userEmail ?? 'guest@example.com';
+      final gender = userModel.gender ?? 'male';
+      
+      debugPrint('Processing with Python backend...');
+      debugPrint('User: $name, Email: $email, Gender: $gender');
+      
+      // Step 2: Select a random character image based on transformation type
+      final transformationType = 
+          userModel.transformationOption ?? 
+          userModel.transformationType ?? 
+          'AI Transformation';
+      
+      final themeName = _getThemeNameFromTransformation(transformationType);
+      debugPrint('Selected theme: $themeName');
+      
+      // Get a random character image URL from Supabase
+      final characterImageUrl = await _getRandomCharacterImageUrl(
+        gender: gender,
+        themeName: themeName,
+      );
+      
+      if (characterImageUrl == null) {
+        debugPrint('Failed to get character image');
+        return null;
+      }
+      
+      debugPrint('Character image URL: $characterImageUrl');
+      
+      // Step 3: Fetch the target image as bytes
+      final targetImageBytes = await PythonBackendService.fetchImageAsBytes(characterImageUrl);
+      
+      // Step 4: Send both images to Python backend for face swap
+      // Note: In the Python backend, sourceImage is the face to swap FROM (character)
+      // and targetImage is where to place the face (user's photo)
+      debugPrint('Sending images to Python backend for face swap...');
+      final swappedImageBytes = await PythonBackendService.swapFaces(
+        sourceImage: targetImageBytes,  // Character image (face source)
+        targetImage: capturedImage,      // User's photo (face destination)
+        name: name,
+        email: email,
+      );
+      
+      if (swappedImageBytes == null) {
+        debugPrint('Face swap failed');
+        return null;
+      }
+      
+      // Step 5: Upload the swapped image to Supabase
+      debugPrint('Uploading swapped image to Supabase...');
+      final swappedImageUrl = await SupabaseService().uploadImageBytes(
+        swappedImageBytes,
+        null,
+        bucket: 'outputimages',
+        prefix: 'swapped_',
+      );
+      
+      if (swappedImageUrl == null) {
+        debugPrint('Failed to upload swapped image');
+        return null;
+      }
+      
+      debugPrint('Swapped image uploaded: $swappedImageUrl');
+      
+      // Step 6: Store the result in the database
+      final uniqueId = const Uuid().v4();
+      
+      // Upload the source image first
+      final sourceImageUrl = await SupabaseService().uploadImageBytes(
+        capturedImage,
+        null,
+        bucket: 'outputimages',
+        prefix: 'source_',
+      );
+      
+      // Store in the database - using correct column name "output" for the result image
+      await SupabaseService.client.from('event_output_images').insert({
+        'unique_id': uniqueId,
+        'name': name,
+        'email': email,
+        'gender': gender,
+        'image_url': sourceImageUrl,  // Source image
+        'characterimage': characterImageUrl,  // Character/target image
+        'output': swappedImageUrl,  // Result image in "output" column
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      
+      debugPrint('Stored result with unique_id: $uniqueId');
+      
+      // Store the processed image URL in the model
+      userModel.setProcessedImageUrl(swappedImageUrl);
+      
+      return swappedImageUrl;
     } on Exception catch (e) {
       debugPrint('Error in Runpod workflow processing: $e');
       return null;
@@ -428,8 +534,10 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   }
 
   Future<String?> _processLinkedIn() async {
+    // Store the model reference early to avoid accessing context after disposal
+    final userModel = context.read<UserSelectionModel>();
+    
     try {
-      final userModel = context.read<UserSelectionModel>();
       final capturedImage = userModel.capturedImage;
 
       if (capturedImage == null) {
@@ -459,6 +567,41 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       }
     } on Exception catch (e) {
       debugPrint('Error in LinkedIn processing: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _getRandomCharacterImageUrl({
+    required String gender,
+    required String themeName,
+  }) async {
+    try {
+      final themeFolderName = themeName.toLowerCase().replaceAll(' ', '_');
+      final genderFolder = gender.toLowerCase();
+      
+      // Images are named like "Male 01.png", "Female 02.png", etc.
+      final genderPrefix = gender.toLowerCase() == 'male' ? 'Male' : 'Female';
+      
+      // Select a random number from 1 to 7 (7 images per theme)
+      final random = Random();
+      final randomNumber = random.nextInt(7) + 1;
+      final imageNumber = randomNumber.toString().padLeft(2, '0');
+      final imageName = '$genderPrefix $imageNumber.png';
+
+      final fullPathInBucket = '$genderFolder/$themeFolderName/$imageName';
+
+      debugPrint('Getting character image from Supabase path: $fullPathInBucket');
+
+      // Get the public URL of the random character image
+      final publicUrl = SupabaseService.client.storage
+          .from('themes')
+          .getPublicUrl(fullPathInBucket);
+
+      debugPrint('Character image URL: $publicUrl');
+      
+      return publicUrl;
+    } on Exception catch (e) {
+      debugPrint('Error getting character image URL: $e');
       return null;
     }
   }

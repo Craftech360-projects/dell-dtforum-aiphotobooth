@@ -272,6 +272,7 @@ class _TransformationScreenState extends State<TransformationScreen> {
                         const Text(
                           "Back",
                           style: TextStyle(
+                            color: AppColors.black,
                             fontSize: 48,
                             fontWeight: FontWeight.w500,
                             height: 1.1,
