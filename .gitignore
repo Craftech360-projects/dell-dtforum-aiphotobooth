@@ -50,10 +50,6 @@ app.*.map.json
 .env.local
 .env.*.local
 
-# Python virtual environments
-python_service/venv/
-**/venv/
-**/__pycache__/
 
 # Large files and backups
 *.backup.tar.gz
