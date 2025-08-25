@@ -150,7 +150,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     setState(() {
       _captureMode = 'palm';
       _palmDetected = true;
-      _countdown = 3;
+      _countdown = 4;
     });
 
     _countdownTimer?.cancel();
@@ -478,7 +478,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
       // Step 3: Select random LinkedIn character image based on gender
       debugPrint('Selecting random LinkedIn professional image...');
-      
+
       await SupabaseService().selectAndUpdateRandomCharacterImage(
         uniqueId: uniqueId,
         gender: gender,
@@ -515,7 +515,9 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       );
 
       if (result['status'] != 'success') {
-        debugPrint('Failed to start LinkedIn face swap job: ${result['message']}');
+        debugPrint(
+          'Failed to start LinkedIn face swap job: ${result['message']}',
+        );
         return null;
       }
 
@@ -547,7 +549,9 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
           );
 
           if (!jobComplete && i < maxAttempts - 1) {
-            debugPrint('LinkedIn job still processing, attempt ${i + 1}/$maxAttempts');
+            debugPrint(
+              'LinkedIn job still processing, attempt ${i + 1}/$maxAttempts',
+            );
             continue;
           }
         }
