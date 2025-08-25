@@ -7,11 +7,9 @@ import 'package:dell_photobooth_2025/config/app_config.dart';
 import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:dell_photobooth_2025/screens/processing_screen.dart';
+import 'package:dell_photobooth_2025/services/faceswap_service.dart';
 import 'package:dell_photobooth_2025/services/hand_detection_service.dart';
-import 'package:dell_photobooth_2025/services/linkedin_processing_service.dart';
-import 'package:dell_photobooth_2025/services/runpod_service.dart';
 import 'package:dell_photobooth_2025/services/supabase_service.dart';
-import 'package:dell_photobooth_2025/workflow/workflow.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -286,23 +284,23 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      // Step 1: Upload image to Supabase bucket "outputimages"
-      debugPrint('Uploading image to Supabase...');
-      final imageUrl = await SupabaseService().uploadImageBytes(
+      // Step 1: Upload user image to Supabase bucket "outputimages"
+      debugPrint('Uploading user image to Supabase...');
+      final userImageUrl = await SupabaseService().uploadImageBytes(
         capturedImage,
         null,
         bucket: 'outputimages',
         prefix: 'user_',
       );
 
-      if (imageUrl == null) {
-        debugPrint('Failed to upload image to Supabase');
+      if (userImageUrl == null) {
+        debugPrint('Failed to upload user image to Supabase');
         return null;
       }
 
-      debugPrint('Image uploaded: $imageUrl');
+      debugPrint('User image uploaded: $userImageUrl');
 
-      // Step 2: Store participant details in table
+      // Step 2: Generate unique ID and store participant details
       final uniqueId = const Uuid().v4();
       final name = userModel.userName ?? 'Guest';
       final email = userModel.userEmail ?? 'guest@example.com';
@@ -314,43 +312,20 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         'name': name,
         'email': email,
         'gender': gender,
-        'image_url': imageUrl,
+        'image_url': userImageUrl,
         'created_at': DateTime.now().toIso8601String(),
       });
 
       debugPrint('Stored participant details with unique_id: $uniqueId');
 
-      // Step 3: Load and update workflow JSON
-      final workflow = await Workflow.getWorkflow('swaplabonline.json');
-
-      // Ensure correct Supabase credentials are used
-      workflow.updateSupabaseCredentials(
-        SupabaseService.supabaseUrl,
-        SupabaseService.supabaseAnonKey,
-      );
-
-      // Update unique_id in the workflow
-      workflow.updateSupabaseWatcherNode(uniqueId, nodeId: '44');
-
-      // Update noise seed with timestamp
-      final seed = DateTime.now().millisecondsSinceEpoch;
-      workflow.updateNoiseSeed(seed);
-
-      // Step 4: Select random character image and update table
+      // Step 3: Select random character image and update table
       debugPrint('Selecting random character image...');
-      // Use transformationOption (the actual selected item) instead of transformationType (the section)
       final transformationType =
           userModel.transformationOption ??
           userModel.transformationType ??
           'AI Transformation';
 
       debugPrint('Raw transformation type from model: "$transformationType"');
-      debugPrint(
-        'TransformationType (section): "${userModel.transformationType}"',
-      );
-      debugPrint(
-        'TransformationOption (selected): "${userModel.transformationOption}"',
-      );
 
       // Map transformation type to theme name for character selection
       final themeName = _getThemeNameFromTransformation(transformationType);
@@ -362,31 +337,45 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         themeName: themeName,
       );
 
-      // Step 5: Send workflow to Runpod
-      debugPrint('Sending workflow to Runpod...');
+      // Step 4: Get the character image URL from database
+      final record = await SupabaseService.client
+          .from('event_output_images')
+          .select('characterimage')
+          .eq('unique_id', uniqueId)
+          .single();
 
-      // Debug: Print the workflow to verify URLs
-      final workflowMap = workflow.toMap();
-      debugPrint('Workflow Supabase URLs:');
-      workflowMap.forEach((key, value) {
-        if (value is Map && value['inputs'] is Map) {
-          final inputs = value['inputs'] as Map;
-          if (inputs.containsKey('supabase_url')) {
-            debugPrint('Node $key: supabase_url = ${inputs['supabase_url']}');
-          }
-        }
-      });
+      final characterImageUrl = record['characterimage'] as String?;
 
-      await RunPodService.triggerRunPodWorkflow(
-        workflow: workflowMap,
+      if (characterImageUrl == null) {
+        debugPrint('Failed to get character image URL');
+        return null;
+      }
+
+      debugPrint('Character image URL: $characterImageUrl');
+
+      // Step 5: Send face swap request to RunPod
+      debugPrint('Sending face swap request to RunPod...');
+      debugPrint('API URL from config: ${AppConfig.runpodEndpointUrl}');
+      debugPrint('API Key present: ${AppConfig.runpodApiKey.isNotEmpty}');
+
+      final result = await FaceSwapService.sendFaceSwapRequest(
+        sourceImageUrl: userImageUrl, // User's face
+        targetImageUrl: characterImageUrl, // Character/theme image
+        uniqueId: uniqueId,
         apiUrl: AppConfig.runpodEndpointUrl,
         apiKey: AppConfig.runpodApiKey,
       );
 
-      debugPrint('Workflow sent to Runpod successfully');
+      if (result['status'] != 'success') {
+        debugPrint('Failed to start face swap job: ${result['message']}');
+        return null;
+      }
 
-      // Step 6: Poll for output image
-      debugPrint('Polling for output image...');
+      final jobId = result['job_id'];
+      debugPrint('Face swap job started with ID: $jobId');
+
+      // Step 6: Poll for job completion and output image
+      debugPrint('Polling for job completion and output image...');
       const maxAttempts = 60; // 3 minutes with 3-second intervals
       const pollInterval = Duration(seconds: 3);
 
@@ -401,7 +390,21 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
         await Future.delayed(pollInterval);
 
-        // Check if output image is available
+        // Check job status first (optional - for better debugging)
+        if (jobId != null) {
+          final jobComplete = await FaceSwapService.checkJobStatus(
+            jobId: jobId,
+            apiUrl: AppConfig.runpodEndpointUrl,
+            apiKey: AppConfig.runpodApiKey,
+          );
+
+          if (!jobComplete && i < maxAttempts - 1) {
+            debugPrint('Job still processing, attempt ${i + 1}/$maxAttempts');
+            continue;
+          }
+        }
+
+        // Check if output image is available in Supabase
         final outputImage = await SupabaseService().getLatestOutputImage(
           uniqueId,
         );
@@ -437,26 +440,138 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      debugPrint('Processing LinkedIn professional headshot...');
+      debugPrint('Processing LinkedIn professional headshot with face swap...');
 
-      // Process with LinkedIn service (only background removal with white background)
-      final processedImageUrl =
-          await LinkedInProcessingService.processLinkedInPhoto(
-            imageBytes: capturedImage,
-            backgroundType: 'white', // Clean white background
-            enhanceSkin: false, // No skin smoothing
-            autoEnhance: false, // No enhancements
-          );
+      // Step 1: Upload user image to Supabase bucket "outputimages"
+      debugPrint('Uploading user image to Supabase...');
+      final userImageUrl = await SupabaseService().uploadImageBytes(
+        capturedImage,
+        null,
+        bucket: 'outputimages',
+        prefix: 'user_',
+      );
 
-      if (processedImageUrl != null) {
-        debugPrint('LinkedIn photo processed successfully: $processedImageUrl');
-        // Store the processed image URL in the model
-        userModel.setProcessedImageUrl(processedImageUrl);
-        return processedImageUrl;
-      } else {
-        debugPrint('Failed to process LinkedIn photo');
+      if (userImageUrl == null) {
+        debugPrint('Failed to upload user image to Supabase');
         return null;
       }
+
+      debugPrint('User image uploaded: $userImageUrl');
+
+      // Step 2: Generate unique ID and store participant details
+      final uniqueId = const Uuid().v4();
+      final name = userModel.userName ?? 'Guest';
+      final email = userModel.userEmail ?? 'guest@example.com';
+      final gender = userModel.gender ?? 'male';
+
+      // Store in the event_output_images table
+      await SupabaseService.client.from('event_output_images').insert({
+        'unique_id': uniqueId,
+        'name': name,
+        'email': email,
+        'gender': gender,
+        'image_url': userImageUrl,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      debugPrint('Stored participant details with unique_id: $uniqueId');
+
+      // Step 3: Select random LinkedIn character image based on gender
+      debugPrint('Selecting random LinkedIn professional image...');
+      
+      await SupabaseService().selectAndUpdateRandomCharacterImage(
+        uniqueId: uniqueId,
+        gender: gender,
+        themeName: 'linkedin',
+      );
+
+      // Step 4: Get the LinkedIn character image URL from database
+      final record = await SupabaseService.client
+          .from('event_output_images')
+          .select('characterimage')
+          .eq('unique_id', uniqueId)
+          .single();
+
+      final characterImageUrl = record['characterimage'] as String?;
+
+      if (characterImageUrl == null) {
+        debugPrint('Failed to get LinkedIn character image URL');
+        return null;
+      }
+
+      debugPrint('LinkedIn character image URL: $characterImageUrl');
+
+      // Step 5: Send face swap request to RunPod
+      debugPrint('Sending face swap request to RunPod for LinkedIn...');
+      debugPrint('API URL from config: ${AppConfig.runpodEndpointUrl}');
+      debugPrint('API Key present: ${AppConfig.runpodApiKey.isNotEmpty}');
+
+      final result = await FaceSwapService.sendFaceSwapRequest(
+        sourceImageUrl: userImageUrl, // User's face
+        targetImageUrl: characterImageUrl, // LinkedIn professional image
+        uniqueId: uniqueId,
+        apiUrl: AppConfig.runpodEndpointUrl,
+        apiKey: AppConfig.runpodApiKey,
+      );
+
+      if (result['status'] != 'success') {
+        debugPrint('Failed to start LinkedIn face swap job: ${result['message']}');
+        return null;
+      }
+
+      final jobId = result['job_id'];
+      debugPrint('LinkedIn face swap job started with ID: $jobId');
+
+      // Step 6: Poll for job completion and output image
+      debugPrint('Polling for LinkedIn job completion and output image...');
+      const maxAttempts = 60; // 3 minutes with 3-second intervals
+      const pollInterval = Duration(seconds: 3);
+
+      bool foundImage = false;
+
+      for (int i = 0; i < maxAttempts; i++) {
+        // Check if we should stop polling (e.g., user navigated away)
+        if (!mounted) {
+          debugPrint('Widget no longer mounted, stopping polling');
+          break;
+        }
+
+        await Future.delayed(pollInterval);
+
+        // Check job status first (optional - for better debugging)
+        if (jobId != null) {
+          final jobComplete = await FaceSwapService.checkJobStatus(
+            jobId: jobId,
+            apiUrl: AppConfig.runpodEndpointUrl,
+            apiKey: AppConfig.runpodApiKey,
+          );
+
+          if (!jobComplete && i < maxAttempts - 1) {
+            debugPrint('LinkedIn job still processing, attempt ${i + 1}/$maxAttempts');
+            continue;
+          }
+        }
+
+        // Check if output image is available in Supabase
+        final outputImage = await SupabaseService().getLatestOutputImage(
+          uniqueId,
+        );
+
+        if (outputImage != null && outputImage.isNotEmpty) {
+          debugPrint('LinkedIn output image received: $outputImage');
+          // Store the processed image URL in the model
+          userModel.setProcessedImageUrl(outputImage);
+          foundImage = true;
+          return outputImage;
+        }
+
+        debugPrint('LinkedIn polling attempt ${i + 1}/$maxAttempts');
+      }
+
+      if (!foundImage) {
+        debugPrint('Timeout waiting for LinkedIn output image');
+      }
+      return null;
     } on Exception catch (e) {
       debugPrint('Error in LinkedIn processing: $e');
       return null;

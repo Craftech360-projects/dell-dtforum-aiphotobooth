@@ -26,6 +26,12 @@ class HandDetectionService {
 
   Future<void> initialize() async {
     try {
+      // Check if handDetector is available
+      if (handDetector == null) {
+        log('Hand detector not available, skipping initialization');
+        return;
+      }
+      
       // Initialize MediaPipe hands
       js_util.callMethod(handDetector, 'init', []);
 
@@ -37,24 +43,35 @@ class HandDetectionService {
       log('Hand detection service initialized');
     } on Exception catch (e) {
       log('Error initializing hand detection: $e');
+      // Continue without hand detection - app can still work with button
     }
   }
 
   void startProcessing(html.VideoElement videoElement) {
     if (_isProcessing) return;
+    
+    // Skip if handDetector is not available
+    if (handDetector == null) {
+      log('Hand detector not available, skipping video processing');
+      return;
+    }
 
     _videoElement = videoElement;
     _isProcessing = true;
 
     // Process video frames every 100ms
     _processTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (_videoElement != null) {
+      if (_videoElement != null && handDetector != null) {
         try {
           js_util.callMethod(handDetector, 'processVideoFrame', [
             _videoElement,
           ]);
         } on Exception catch (e) {
           log('Error processing video frame: $e');
+          // Stop processing if errors persist
+          if (e.toString().contains('abort') || e.toString().contains('failed')) {
+            stopProcessing();
+          }
         }
       }
     });

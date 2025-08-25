@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
+import 'package:dell_photobooth_2025/screens/welcome_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -293,8 +294,11 @@ class _OutputScreenState extends State<OutputScreen> {
     userModel.clearAll();
 
     // Navigate to home and remove all previous routes
-    Navigator.of(
-      context,
-    ).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => const WelcomeScreen(),
+      ),
+      (Route<dynamic> route) => false,
+    );
   }
 }
