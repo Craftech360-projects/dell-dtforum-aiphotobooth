@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/screens/output_screen.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +16,6 @@ class ProcessingScreen extends StatefulWidget {
 class _ProcessingScreenState extends State<ProcessingScreen> {
   String _statusMessage = 'Initializing...';
   bool _isProcessing = true;
-  double _progress = 0.0;
 
   @override
   void initState() {
@@ -27,7 +28,6 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
       // Update status messages as processing happens
       setState(() {
         _statusMessage = 'Uploading your photo...';
-        _progress = 0.2;
       });
 
       // Start the actual processing
@@ -35,13 +35,14 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
 
       if (mounted) {
         if (result != null) {
-          // Navigate to output screen and remove all previous screens
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-              builder: (context) =>
-                  OutputScreen(imageUrl: result, imageBytes: null),
+          unawaited(
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) =>
+                    OutputScreen(imageUrl: result, imageBytes: null),
+              ),
+              (Route<dynamic> route) => false,
             ),
-            (Route<dynamic> route) => false, // Remove all previous routes
           );
         } else {
           setState(() {
@@ -134,20 +135,6 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
 
                     // Progress indicator
                     if (_isProcessing) ...[
-                      SizedBox(
-                        width: 400,
-                        child: LinearProgressIndicator(
-                          value: _progress,
-                          minHeight: 8,
-                          backgroundColor: AppColors.white.withValues(
-                            alpha: 0.2,
-                          ),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF0B7C84),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
                       const Text(
                         'Please wait while we create your AI transformation...',
                         style: TextStyle(

@@ -63,9 +63,6 @@ class SupabaseService {
       // Download the image from Supabase storage - using 'themes' bucket
       final response = await client.storage.from('themes').download(filePath);
 
-      debugPrint(
-        'Character image downloaded successfully: ${response.length} bytes',
-      );
       return response;
     } on Exception catch (e) {
       debugPrint('Error fetching character image: $e');
@@ -92,8 +89,6 @@ class SupabaseService {
 
         // Get public URL from 'themes' bucket
         final publicUrl = client.storage.from('themes').getPublicUrl(filePath);
-
-        debugPrint('Trying public URL: $publicUrl');
 
         // Download using HTTP
         final response = await http.get(Uri.parse(publicUrl));
@@ -224,7 +219,7 @@ class SupabaseService {
         final result = await uploadImageBytes(
           response.bodyBytes,
           null,
-          bucket: 'inputimages',
+          bucket: 'outputimages',
           prefix: 'face_',
         );
         return result;
@@ -249,19 +244,24 @@ class SupabaseService {
     try {
       final themeFolderName = themeName.toLowerCase().replaceAll(' ', '_');
       final genderFolder = gender.toLowerCase();
-      
+
       // Images are named like "Male 01.png", "Female 02.png", etc.
       final genderPrefix = gender.toLowerCase() == 'male' ? 'Male' : 'Female';
-      
+
       // Select a random number from 1 to 7 (7 images per theme)
       final randomNumber = Random().nextInt(7) + 1;
-      final imageNumber = randomNumber.toString().padLeft(2, '0'); // Ensures "01", "02", etc.
-      final imageName = '$genderPrefix $imageNumber.png'; // Note the space between prefix and number
+      final imageNumber = randomNumber.toString().padLeft(
+        2,
+        '0',
+      ); // Ensures "01", "02", etc.
+      final imageName =
+          '$genderPrefix $imageNumber.png'; // Note the space between prefix and number
 
       final fullPathInBucket = '$genderFolder/$themeFolderName/$imageName';
 
       debugPrint(
-          'Selecting character image from Supabase path: $fullPathInBucket');
+        'Selecting character image from Supabase path: $fullPathInBucket',
+      );
 
       // Get the public URL of the random character image
       final publicUrl = _client.storage
@@ -275,9 +275,10 @@ class SupabaseService {
           .from('event_output_images')
           .update({'characterimage': publicUrl})
           .eq('unique_id', uniqueId);
-      
+
       debugPrint(
-          'Successfully updated characterimage for unique_id: $uniqueId');
+        'Successfully updated characterimage for unique_id: $uniqueId',
+      );
 
       // debugPrint(
       //     'Successfully updated characterimage for unique_id: $uniqueId');

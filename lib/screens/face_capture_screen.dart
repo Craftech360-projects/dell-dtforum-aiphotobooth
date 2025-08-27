@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:html' as html;
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
@@ -8,7 +7,7 @@ import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:dell_photobooth_2025/screens/processing_screen.dart';
 import 'package:dell_photobooth_2025/services/faceswap_service.dart';
-import 'package:dell_photobooth_2025/services/hand_detection_service.dart';
+import 'package:dell_photobooth_2025/services/comfyui_service.dart';
 import 'package:dell_photobooth_2025/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,57 +27,18 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   bool _isCapturing = false;
   int _countdown = 0;
   Timer? _countdownTimer;
-  String _captureMode = 'waiting'; // 'waiting', 'palm', 'manual'
-  bool _palmDetected = false;
-  bool _isProcessing = false; // Add flag to prevent re-processing
-
-  StreamSubscription<bool>? _palmDetectionSubscription;
-  HandDetectionService? _jsHandDetection;
+  bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
     _initializeCamera();
-    _initializeHandDetection();
-  }
-
-  Future<void> _initializeHandDetection() async {
-    // Always use JavaScript-based detection for both local and production
-    debugPrint('Initializing JavaScript-based palm detection');
-
-    try {
-      _jsHandDetection = HandDetectionService();
-      await _jsHandDetection!.initialize();
-
-      // Listen for palm detection from JavaScript
-      _palmDetectionSubscription = _jsHandDetection!.palmDetectionStream.listen(
-        (detected) {
-          if (detected && !_isCapturing && _countdown == 0) {
-            _startPalmCapture();
-          }
-        },
-      );
-
-      debugPrint('JavaScript hand detection initialized successfully');
-
-      // Start processing video frames after camera is initialized
-      if (_cameraController != null && _cameraController!.value.isInitialized) {
-        _startJSFrameProcessing();
-      }
-
-      // Note: JavaScript detection works with the camera preview directly
-      // The hand_detector.js will process frames from the video element
-    } on Exception catch (e) {
-      debugPrint('Failed to initialize JavaScript hand detection: $e');
-      // Palm detection won't work, but manual capture button is still available
-    }
   }
 
   Future<void> _initializeCamera() async {
     try {
       _cameras = await availableCameras();
       if (_cameras != null && _cameras!.isNotEmpty) {
-        // Use front camera if available, otherwise use the first camera
         final frontCamera = _cameras!.firstWhere(
           (camera) => camera.lensDirection == CameraLensDirection.front,
           orElse: () => _cameras!.first,
@@ -96,9 +56,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
           setState(() {
             _isInitialized = true;
           });
-
-          // Initialize hand detection after camera is ready
-          await _initializeHandDetection();
         }
       }
     } on Exception catch (e) {
@@ -114,42 +71,8 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     }
   }
 
-  void _startJSFrameProcessing() {
-    // For JavaScript-based detection, we need to connect the video element
-    // The JavaScript handDetector will process frames directly from the camera preview
-    debugPrint('Starting JavaScript frame processing...');
-
-    // Wait a bit for the video element to be rendered in the DOM
-    Future.delayed(const Duration(milliseconds: 500), () {
-      try {
-        // Get the video element from the DOM
-        final videoElements = html.document.getElementsByTagName('video');
-        if (videoElements.isNotEmpty) {
-          final videoElement = videoElements[0] as html.VideoElement;
-          _jsHandDetection?.startProcessing(videoElement);
-          debugPrint('Started JavaScript frame processing with video element');
-        } else {
-          debugPrint('No video element found in DOM, retrying...');
-          // Retry after another delay
-          Future.delayed(const Duration(milliseconds: 500), () {
-            final retryElements = html.document.getElementsByTagName('video');
-            if (retryElements.isNotEmpty) {
-              final videoElement = retryElements[0] as html.VideoElement;
-              _jsHandDetection?.startProcessing(videoElement);
-              debugPrint('Started JavaScript frame processing on retry');
-            }
-          });
-        }
-      } on Exception catch (e) {
-        debugPrint('Error starting JavaScript frame processing: $e');
-      }
-    });
-  }
-
-  void _startPalmCapture() {
+  void _startManualCapture() {
     setState(() {
-      _captureMode = 'palm';
-      _palmDetected = true;
       _countdown = 4;
     });
 
@@ -168,27 +91,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     });
   }
 
-  // void _startManualCapture() {
-  //   setState(() {
-  //     _captureMode = 'manual';
-  //     _countdown = 3;
-  //   });
-
-  //   _countdownTimer?.cancel();
-  //   _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-  //     if (mounted) {
-  //       setState(() {
-  //         _countdown--;
-  //       });
-
-  //       if (_countdown <= 0) {
-  //         timer.cancel();
-  //         _capturePhoto();
-  //       }
-  //     }
-  //   });
-  // }
-
   Future<void> _capturePhoto() async {
     if (_cameraController == null ||
         !_cameraController!.value.isInitialized ||
@@ -205,10 +107,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       final Uint8List imageBytes = await photo.readAsBytes();
 
       if (mounted) {
-        // Store the image in the provider
         context.read<UserSelectionModel>().setCapturedImage(imageBytes);
-
-        // Directly start processing without showing preview
         await _navigateToResults();
       }
     } on Exception catch (e) {
@@ -224,14 +123,11 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     } finally {
       setState(() {
         _isCapturing = false;
-        _captureMode = 'waiting';
-        _palmDetected = false;
       });
     }
   }
 
   Future<void> _navigateToResults() async {
-    // Prevent re-processing if already processing
     if (_isProcessing) {
       debugPrint('Already processing, skipping...');
       return;
@@ -244,14 +140,9 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     final selections = context.read<UserSelectionModel>().toMap();
     debugPrint('User selections: $selections');
 
-    // Check if this is LinkedIn mode
     final userModel = context.read<UserSelectionModel>();
     final isLinkedIn = userModel.category == 'linkedin';
 
-    // Stop hand detection before navigating
-    _jsHandDetection?.stopProcessing();
-
-    // Navigate to processing screen with appropriate processor
     if (mounted) {
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -261,15 +152,10 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         ),
       );
 
-      // Reset processing flag and restart hand detection when returning from processing screen
       if (mounted) {
         setState(() {
           _isProcessing = false;
         });
-        // Restart hand detection
-        _jsHandDetection?.startProcessing(
-          html.document.getElementsByTagName('video')[0] as html.VideoElement,
-        );
       }
     }
   }
@@ -284,8 +170,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      // Step 1: Upload user image to Supabase bucket "outputimages"
-      debugPrint('Uploading user image to Supabase...');
       final userImageUrl = await SupabaseService().uploadImageBytes(
         capturedImage,
         null,
@@ -298,15 +182,11 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      debugPrint('User image uploaded: $userImageUrl');
-
-      // Step 2: Generate unique ID and store participant details
       final uniqueId = const Uuid().v4();
       final name = userModel.userName ?? 'Guest';
       final email = userModel.userEmail ?? 'guest@example.com';
       final gender = userModel.gender ?? 'male';
 
-      // Store in the event_output_images table
       await SupabaseService.client.from('event_output_images').insert({
         'unique_id': uniqueId,
         'name': name,
@@ -316,20 +196,12 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      debugPrint('Stored participant details with unique_id: $uniqueId');
-
-      // Step 3: Select random character image and update table
-      debugPrint('Selecting random character image...');
       final transformationType =
           userModel.transformationOption ??
           userModel.transformationType ??
           'AI Transformation';
 
-      debugPrint('Raw transformation type from model: "$transformationType"');
-
-      // Map transformation type to theme name for character selection
       final themeName = _getThemeNameFromTransformation(transformationType);
-      debugPrint('Mapped theme name: "$themeName"');
 
       await SupabaseService().selectAndUpdateRandomCharacterImage(
         uniqueId: uniqueId,
@@ -337,7 +209,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         themeName: themeName,
       );
 
-      // Step 4: Get the character image URL from database
       final record = await SupabaseService.client
           .from('event_output_images')
           .select('characterimage')
@@ -351,16 +222,9 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      debugPrint('Character image URL: $characterImageUrl');
-
-      // Step 5: Send face swap request to RunPod
-      debugPrint('Sending face swap request to RunPod...');
-      debugPrint('API URL from config: ${AppConfig.runpodEndpointUrl}');
-      debugPrint('API Key present: ${AppConfig.runpodApiKey.isNotEmpty}');
-
       final result = await FaceSwapService.sendFaceSwapRequest(
-        sourceImageUrl: userImageUrl, // User's face
-        targetImageUrl: characterImageUrl, // Character/theme image
+        sourceImageUrl: userImageUrl,
+        targetImageUrl: characterImageUrl,
         uniqueId: uniqueId,
         apiUrl: AppConfig.runpodEndpointUrl,
         apiKey: AppConfig.runpodApiKey,
@@ -372,17 +236,12 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       }
 
       final jobId = result['job_id'];
-      debugPrint('Face swap job started with ID: $jobId');
-
-      // Step 6: Poll for job completion and output image
-      debugPrint('Polling for job completion and output image...');
-      const maxAttempts = 60; // 3 minutes with 3-second intervals
+      const maxAttempts = 60;
       const pollInterval = Duration(seconds: 3);
 
       bool foundImage = false;
 
       for (int i = 0; i < maxAttempts; i++) {
-        // Check if we should stop polling (e.g., user navigated away)
         if (!mounted) {
           debugPrint('Widget no longer mounted, stopping polling');
           break;
@@ -390,7 +249,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
         await Future.delayed(pollInterval);
 
-        // Check job status first (optional - for better debugging)
         if (jobId != null) {
           final jobComplete = await FaceSwapService.checkJobStatus(
             jobId: jobId,
@@ -404,14 +262,12 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
           }
         }
 
-        // Check if output image is available in Supabase
         final outputImage = await SupabaseService().getLatestOutputImage(
           uniqueId,
         );
 
         if (outputImage != null && outputImage.isNotEmpty) {
           debugPrint('Output image received: $outputImage');
-          // Store the processed image URL in the model
           userModel.setProcessedImageUrl(outputImage);
           foundImage = true;
           return outputImage;
@@ -440,10 +296,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      debugPrint('Processing LinkedIn professional headshot with face swap...');
-
-      // Step 1: Upload user image to Supabase bucket "outputimages"
-      debugPrint('Uploading user image to Supabase...');
       final userImageUrl = await SupabaseService().uploadImageBytes(
         capturedImage,
         null,
@@ -456,15 +308,12 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      debugPrint('User image uploaded: $userImageUrl');
-
-      // Step 2: Generate unique ID and store participant details
       final uniqueId = const Uuid().v4();
       final name = userModel.userName ?? 'Guest';
       final email = userModel.userEmail ?? 'guest@example.com';
       final gender = userModel.gender ?? 'male';
 
-      // Store in the event_output_images table
+      // Store user details in database
       await SupabaseService.client.from('event_output_images').insert({
         'unique_id': uniqueId,
         'name': name,
@@ -474,65 +323,28 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      debugPrint('Stored participant details with unique_id: $uniqueId');
+      debugPrint('Starting ComfyUI LinkedIn headshot generation');
 
-      // Step 3: Select random LinkedIn character image based on gender
-      debugPrint('Selecting random LinkedIn professional image...');
-
-      await SupabaseService().selectAndUpdateRandomCharacterImage(
+      // Use ComfyUI service for LinkedIn processing
+      final result = await ComfyUIService.sendLinkedInWorkflow(
         uniqueId: uniqueId,
-        gender: gender,
-        themeName: 'linkedin',
-      );
-
-      // Step 4: Get the LinkedIn character image URL from database
-      final record = await SupabaseService.client
-          .from('event_output_images')
-          .select('characterimage')
-          .eq('unique_id', uniqueId)
-          .single();
-
-      final characterImageUrl = record['characterimage'] as String?;
-
-      if (characterImageUrl == null) {
-        debugPrint('Failed to get LinkedIn character image URL');
-        return null;
-      }
-
-      debugPrint('LinkedIn character image URL: $characterImageUrl');
-
-      // Step 5: Send face swap request to RunPod
-      debugPrint('Sending face swap request to RunPod for LinkedIn...');
-      debugPrint('API URL from config: ${AppConfig.runpodEndpointUrl}');
-      debugPrint('API Key present: ${AppConfig.runpodApiKey.isNotEmpty}');
-
-      final result = await FaceSwapService.sendFaceSwapRequest(
-        sourceImageUrl: userImageUrl, // User's face
-        targetImageUrl: characterImageUrl, // LinkedIn professional image
-        uniqueId: uniqueId,
-        apiUrl: AppConfig.runpodEndpointUrl,
+        apiUrl: AppConfig.comfyUIEndpointUrl,
         apiKey: AppConfig.runpodApiKey,
       );
 
       if (result['status'] != 'success') {
         debugPrint(
-          'Failed to start LinkedIn face swap job: ${result['message']}',
+          'Failed to start ComfyUI LinkedIn job: ${result['message']}',
         );
         return null;
       }
 
       final jobId = result['job_id'];
-      debugPrint('LinkedIn face swap job started with ID: $jobId');
-
-      // Step 6: Poll for job completion and output image
-      debugPrint('Polling for LinkedIn job completion and output image...');
-      const maxAttempts = 60; // 3 minutes with 3-second intervals
-      const pollInterval = Duration(seconds: 3);
-
+      const maxAttempts = 60;
+      const pollInterval = Duration(seconds: 5);
       bool foundImage = false;
 
       for (int i = 0; i < maxAttempts; i++) {
-        // Check if we should stop polling (e.g., user navigated away)
         if (!mounted) {
           debugPrint('Widget no longer mounted, stopping polling');
           break;
@@ -540,79 +352,64 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
         await Future.delayed(pollInterval);
 
-        // Check job status first (optional - for better debugging)
         if (jobId != null) {
-          final jobComplete = await FaceSwapService.checkJobStatus(
+          final jobComplete = await ComfyUIService.checkJobStatus(
             jobId: jobId,
-            apiUrl: AppConfig.runpodEndpointUrl,
+            apiUrl: AppConfig.comfyUIEndpointUrl,
             apiKey: AppConfig.runpodApiKey,
           );
 
           if (!jobComplete && i < maxAttempts - 1) {
             debugPrint(
-              'LinkedIn job still processing, attempt ${i + 1}/$maxAttempts',
+              'ComfyUI LinkedIn job still processing, attempt ${i + 1}/$maxAttempts',
             );
             continue;
           }
         }
 
-        // Check if output image is available in Supabase
         final outputImage = await SupabaseService().getLatestOutputImage(
           uniqueId,
         );
 
         if (outputImage != null && outputImage.isNotEmpty) {
-          debugPrint('LinkedIn output image received: $outputImage');
-          // Store the processed image URL in the model
+          debugPrint('ComfyUI LinkedIn output image received: $outputImage');
           userModel.setProcessedImageUrl(outputImage);
           foundImage = true;
           return outputImage;
         }
 
-        debugPrint('LinkedIn polling attempt ${i + 1}/$maxAttempts');
+        debugPrint('ComfyUI LinkedIn polling attempt ${i + 1}/$maxAttempts');
       }
 
       if (!foundImage) {
-        debugPrint('Timeout waiting for LinkedIn output image');
+        debugPrint('Timeout waiting for ComfyUI LinkedIn output image');
       }
       return null;
     } on Exception catch (e) {
-      debugPrint('Error in LinkedIn processing: $e');
+      debugPrint('Error in ComfyUI LinkedIn processing: $e');
       return null;
     }
   }
 
   String _getThemeNameFromTransformation(String transformationType) {
-    // Map transformation types to theme folder names in Supabase
-    // These must match exactly with the folder names in the themes bucket
-    // Clean up the transformation type first (remove extra spaces, normalize)
     final cleanedType = transformationType.trim();
 
     final Map<String, String> transformationToTheme = {
-      // From TransformationScreen options (with spaces from \n replacement)
       'Sustainability Champions': 'sustainability_champions',
       'Futuristic Workspace': 'futuristic_workspace',
       'Cyberpunk Future': 'cyberpunk_future',
       'Space Explorer': 'space_explorer',
       'Extreme Sports': 'extreme_sports',
       'Fantasy Kingdom': 'fantasy_kingdom',
-      // Section names (in case they get passed)
       'Professional Edge': 'futuristic_workspace',
       'Futuristic Vision': 'cyberpunk_future',
       'Playful Fun': 'extreme_sports',
-      // Legacy/fallback mappings
       'AI Transformation': 'futuristic_workspace',
     };
 
-    debugPrint(
-      'Mapping transformation "$cleanedType" to theme: ${transformationToTheme[cleanedType]}',
-    );
-
-    // If no exact match found, try to find a partial match
     String? matchedTheme = transformationToTheme[cleanedType];
 
     if (matchedTheme == null) {
-      // Try case-insensitive partial matching
       final lowerType = cleanedType.toLowerCase();
 
       if (lowerType.contains('sustainability')) {
@@ -632,19 +429,12 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       }
     }
 
-    debugPrint(
-      'Final matched theme: ${matchedTheme ?? "futuristic_workspace (fallback)"}',
-    );
-
     return matchedTheme ?? 'futuristic_workspace';
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
-    _palmDetectionSubscription?.cancel();
-    _jsHandDetection?.stopProcessing();
-    _jsHandDetection?.dispose();
     _cameraController?.dispose();
     super.dispose();
   }
@@ -693,9 +483,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                     height: 1085,
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: _palmDetected
-                            ? Colors.green
-                            : const Color(0xFF0B7C84),
+                        color: const Color(0xFF0B7C84),
                         width: 4,
                       ),
                       borderRadius: BorderRadius.circular(12),
@@ -725,14 +513,13 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                                               color: AppColors.white,
                                             ),
                                           ),
-                                          if (_captureMode == 'palm')
-                                            const Text(
-                                              '✋ Palm Detected!',
-                                              style: TextStyle(
-                                                fontSize: 24,
-                                                color: AppColors.white,
-                                              ),
+                                          const Text(
+                                            'Get ready!',
+                                            style: TextStyle(
+                                              fontSize: 24,
+                                              color: AppColors.white,
                                             ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -749,14 +536,37 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
                   const SizedBox(height: 40),
 
-                  // Instructions
-                  const Text(
-                    "Show your open palm\nto capture photo",
-                    style: TextStyle(
-                      fontSize: 52,
-                      fontWeight: FontWeight.w300,
-                      color: AppColors.white,
-                      height: 1.1,
+                  // Capture Button
+                  Container(
+                    width: 790,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _isCapturing || _countdown > 0
+                          ? null
+                          : _startManualCapture,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0B7C84),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                      ),
+                      child: _isCapturing
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              "Capture Photo",
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                 ],

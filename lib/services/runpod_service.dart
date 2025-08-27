@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -15,7 +16,7 @@ class RunPodService {
 
     // The payload structure requires the workflow to be nested under "input" and "workflow" keys.
     final body = jsonEncode({
-      'input': {'workflow': workflow}
+      'input': {'workflow': workflow},
     });
 
     try {
@@ -37,9 +38,11 @@ class RunPodService {
       } else {
         // Handle non-200 responses
         debugPrint(
-            'Error sending workflow to RunPod. Status: ${response.statusCode}, Body: ${response.body}');
+          'Error sending workflow to RunPod. Status: ${response.statusCode}, Body: ${response.body}',
+        );
         throw Exception(
-            'Failed to send workflow. Status: ${response.statusCode}');
+          'Failed to send workflow. Status: ${response.statusCode}',
+        );
       }
     } catch (e) {
       debugPrint('Exception while sending workflow to RunPod: $e');
