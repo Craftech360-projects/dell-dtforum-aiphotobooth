@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:image/image.dart' as img;
 import 'package:dell_photobooth_2025/config/app_config.dart';
 import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:dell_photobooth_2025/screens/processing_screen.dart';
 import 'package:dell_photobooth_2025/services/faceswap_service.dart';
-import 'package:dell_photobooth_2025/services/comfyui_service.dart';
+import 'package:dell_photobooth_2025/services/gemini_service.dart';
 import 'package:dell_photobooth_2025/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -296,6 +297,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
+      // Upload original user image to Supabase
       final userImageUrl = await SupabaseService().uploadImageBytes(
         capturedImage,
         null,
@@ -323,71 +325,119 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      debugPrint('Starting ComfyUI LinkedIn headshot generation');
+      debugPrint('🔥 Starting Gemini LinkedIn headshot generation');
 
-      // Use ComfyUI service for LinkedIn processing
-      final result = await ComfyUIService.sendLinkedInWorkflow(
-        uniqueId: uniqueId,
-        apiUrl: AppConfig.comfyUIEndpointUrl,
-        apiKey: AppConfig.runpodApiKey,
+      // Crop the image to portrait aspect ratio (2:3) before processing
+      final croppedImage = _cropImageToPortrait(capturedImage);
+
+      // Use Gemini service for LinkedIn professional headshot generation
+      final generatedImageBytes = await GeminiService.generateLinkedInHeadshot(
+        inputImageBytes: croppedImage,
       );
 
-      if (result['status'] != 'success') {
-        debugPrint(
-          'Failed to start ComfyUI LinkedIn job: ${result['message']}',
-        );
+      if (generatedImageBytes == null) {
+        debugPrint('❌ Failed to generate LinkedIn headshot with Gemini');
         return null;
       }
 
-      final jobId = result['job_id'];
-      const maxAttempts = 60;
-      const pollInterval = Duration(seconds: 5);
-      bool foundImage = false;
+      debugPrint('✅ Successfully generated LinkedIn headshot with Gemini');
+      debugPrint('Generated image size: ${generatedImageBytes.length} bytes');
 
-      for (int i = 0; i < maxAttempts; i++) {
-        if (!mounted) {
-          debugPrint('Widget no longer mounted, stopping polling');
-          break;
-        }
+      // Upload the generated image to Supabase
+      final outputImageUrl = await SupabaseService().uploadImageBytes(
+        generatedImageBytes,
+        uniqueId,
+        bucket: 'outputimages',
+        prefix: 'linkedin_',
+      );
 
-        await Future.delayed(pollInterval);
-
-        if (jobId != null) {
-          final jobComplete = await ComfyUIService.checkJobStatus(
-            jobId: jobId,
-            apiUrl: AppConfig.comfyUIEndpointUrl,
-            apiKey: AppConfig.runpodApiKey,
-          );
-
-          if (!jobComplete && i < maxAttempts - 1) {
-            debugPrint(
-              'ComfyUI LinkedIn job still processing, attempt ${i + 1}/$maxAttempts',
-            );
-            continue;
-          }
-        }
-
-        final outputImage = await SupabaseService().getLatestOutputImage(
-          uniqueId,
-        );
-
-        if (outputImage != null && outputImage.isNotEmpty) {
-          debugPrint('ComfyUI LinkedIn output image received: $outputImage');
-          userModel.setProcessedImageUrl(outputImage);
-          foundImage = true;
-          return outputImage;
-        }
-
-        debugPrint('ComfyUI LinkedIn polling attempt ${i + 1}/$maxAttempts');
+      if (outputImageUrl == null) {
+        debugPrint('Failed to upload generated image to Supabase');
+        return null;
       }
 
-      if (!foundImage) {
-        debugPrint('Timeout waiting for ComfyUI LinkedIn output image');
-      }
-      return null;
+      // Update the database record with the output image
+      await SupabaseService.client
+          .from('event_output_images')
+          .update({'output': outputImageUrl})
+          .eq('unique_id', uniqueId);
+
+      debugPrint('🎉 LinkedIn headshot processing completed: $outputImageUrl');
+
+      // Set the processed image URL in the user model
+      userModel.setProcessedImageUrl(outputImageUrl);
+
+      return outputImageUrl;
     } on Exception catch (e) {
-      debugPrint('Error in ComfyUI LinkedIn processing: $e');
+      debugPrint('❌ Error in Gemini LinkedIn processing: $e');
       return null;
+    }
+  }
+
+  Uint8List _cropImageToPortrait(Uint8List imageBytes) {
+    try {
+      // Decode the image
+      final image = img.decodeImage(imageBytes);
+      if (image == null) {
+        debugPrint('❌ Failed to decode image for cropping');
+        return imageBytes;
+      }
+
+      final originalWidth = image.width;
+      final originalHeight = image.height;
+      
+      debugPrint('📏 Original image dimensions: ${originalWidth}x$originalHeight');
+
+      // Calculate target dimensions for 2:3 aspect ratio (width:height)
+      int targetWidth;
+      int targetHeight;
+
+      // If the image is already portrait or square, maintain width and adjust height
+      if (originalHeight >= originalWidth) {
+        targetWidth = originalWidth;
+        targetHeight = (originalWidth * 1.5).round(); // 2:3 ratio
+        
+        // If calculated height is larger than original, use original height and adjust width
+        if (targetHeight > originalHeight) {
+          targetHeight = originalHeight;
+          targetWidth = (originalHeight / 1.5).round();
+        }
+      } else {
+        // Image is landscape, so we need to make it portrait
+        // Use height as the base and calculate width for portrait
+        targetHeight = originalHeight;
+        targetWidth = (originalHeight / 1.5).round(); // For 2:3 ratio
+        
+        // If calculated width is larger than original, use original width and adjust height
+        if (targetWidth > originalWidth) {
+          targetWidth = originalWidth;
+          targetHeight = (originalWidth * 1.5).round();
+        }
+      }
+
+      // Calculate crop coordinates (center crop)
+      final cropX = ((originalWidth - targetWidth) / 2).round();
+      final cropY = ((originalHeight - targetHeight) / 2).round();
+
+      debugPrint('✂️ Cropping to ${targetWidth}x$targetHeight at offset ($cropX, $cropY)');
+
+      // Crop the image
+      final croppedImage = img.copyCrop(
+        image,
+        x: cropX,
+        y: cropY,
+        width: targetWidth,
+        height: targetHeight,
+      );
+
+      // Encode back to bytes
+      final croppedBytes = Uint8List.fromList(img.encodeJpg(croppedImage, quality: 90));
+      
+      debugPrint('✅ Image cropped successfully: ${croppedBytes.length} bytes');
+      return croppedBytes;
+    } on Exception catch (e) {
+      debugPrint('❌ Error cropping image: $e');
+      return imageBytes; // Return original if cropping fails
     }
   }
 
@@ -479,8 +529,8 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
                   // Camera View Container
                   Container(
-                    width: 790,
-                    height: 1085,
+                    width: 700,
+                    height: 1050,
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: const Color(0xFF0B7C84),
@@ -538,7 +588,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
                   // Capture Button
                   Container(
-                    width: 790,
+                    width: 700,
                     height: 100,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(50),
