@@ -275,6 +275,7 @@ class _TransformationScreenState extends State<TransformationScreen> {
                             fontSize: 48,
                             fontWeight: FontWeight.w500,
                             height: 1.1,
+                            color: AppColors.black,
                           ),
                         ),
                       ],
