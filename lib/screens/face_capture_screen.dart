@@ -171,8 +171,11 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
+      // Crop the image to portrait aspect ratio (2:3) before processing - same as LinkedIn
+      final croppedImage = _cropImageToPortrait(capturedImage);
+
       final userImageUrl = await SupabaseService().uploadImageBytes(
-        capturedImage,
+        croppedImage,
         null,
         bucket: 'outputimages',
         prefix: 'user_',
@@ -297,9 +300,27 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         return null;
       }
 
-      // Upload original user image to Supabase
+      debugPrint('🔥 Starting Gemini LinkedIn headshot generation');
+
+      // Crop the image to portrait aspect ratio (2:3) before processing
+      final croppedImage = _cropImageToPortrait(capturedImage);
+
+      // Use Gemini service for LinkedIn professional headshot generation
+      final generatedImageBytes = await GeminiService.generateLinkedInHeadshot(
+        inputImageBytes: croppedImage,
+      );
+
+      if (generatedImageBytes == null) {
+        debugPrint('❌ Failed to generate LinkedIn headshot with Gemini');
+        return null;
+      }
+
+      debugPrint('✅ Successfully generated LinkedIn headshot with Gemini');
+      debugPrint('Generated image size: ${generatedImageBytes.length} bytes');
+
+      // Now upload the cropped user image to Supabase
       final userImageUrl = await SupabaseService().uploadImageBytes(
-        capturedImage,
+        croppedImage,
         null,
         bucket: 'outputimages',
         prefix: 'user_',
@@ -324,24 +345,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         'image_url': userImageUrl,
         'created_at': DateTime.now().toIso8601String(),
       });
-
-      debugPrint('🔥 Starting Gemini LinkedIn headshot generation');
-
-      // Crop the image to portrait aspect ratio (2:3) before processing
-      final croppedImage = _cropImageToPortrait(capturedImage);
-
-      // Use Gemini service for LinkedIn professional headshot generation
-      final generatedImageBytes = await GeminiService.generateLinkedInHeadshot(
-        inputImageBytes: croppedImage,
-      );
-
-      if (generatedImageBytes == null) {
-        debugPrint('❌ Failed to generate LinkedIn headshot with Gemini');
-        return null;
-      }
-
-      debugPrint('✅ Successfully generated LinkedIn headshot with Gemini');
-      debugPrint('Generated image size: ${generatedImageBytes.length} bytes');
 
       // Upload the generated image to Supabase
       final outputImageUrl = await SupabaseService().uploadImageBytes(

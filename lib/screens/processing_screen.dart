@@ -27,7 +27,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
     try {
       // Update status messages as processing happens
       setState(() {
-        _statusMessage = 'Uploading your photo...';
+        _statusMessage = 'Magic is happening...';
       });
 
       // Start the actual processing
