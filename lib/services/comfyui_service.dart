@@ -20,9 +20,7 @@ class ComfyUIService {
       // Send workflow to ComfyUI RunPod endpoint
       // cft360/serverless handler.py expects workflow under input.workflow
       final payload = {
-        'input': {
-          'workflow': workflow,
-        },
+        'input': {'workflow': workflow},
       };
 
       // Debug: Print the full payload
@@ -39,7 +37,7 @@ class ComfyUIService {
           ? apiUrl.substring(0, apiUrl.length - 1)
           : apiUrl;
       final runUrl = '$cleanApiUrl/run';
-      
+
       debugPrint('📡 Sending to URL: $runUrl');
 
       final response = await http.post(
@@ -50,11 +48,11 @@ class ComfyUIService {
 
       debugPrint('📨 Response status: ${response.statusCode}');
       debugPrint('📨 Response headers: ${response.headers}');
-      
+
       // Accept both 200 and 201, and check for "IN_QUEUE" status
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        
+
         // Check if we got a job ID (RunPod returns id and status)
         if (responseData['id'] != null) {
           return {
@@ -601,8 +599,8 @@ class ComfyUIService {
   },
   "283": {
     "inputs": {
-      "supabase_url": "https://qwcxcdcponxctenncila.supabase.co",
-      "supabase_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3Y3hjZGNwb254Y3Rlbm5jaWxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3Nzk2OTYsImV4cCI6MjA3MTM1NTY5Nn0.CW24DqG4MyD0XzNxflLSXOreHPQ7zHE5AuLV0y0iY3A",
+      "supabase_url": "https://xyrvruzxxekcbvjtqqdf.supabase.co",
+      "supabase_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5cnZydXp4eGVrY2J2anRxcWRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4ODU3NDAsImV4cCI6MjA3MjQ2MTc0MH0.2S8SaLawLym1vMXz_RCWG88Fs-A4sykVxB_TCsen1_I",
       "table_name": "event_output_images",
       "image_column": "image_url",
       "id_column": "unique_id",
@@ -619,7 +617,7 @@ class ComfyUIService {
         "283",
         2
       ],
-      "supabase_url": "https://qwcxcdcponxctenncila.supabase.co",
+      "supabase_url": "https://xyrvruzxxekcbvjtqqdf.supabase.co",
       "supabase_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3Y3hjZGNwb254Y3Rlbm5jaWxhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTc3OTY5NiwiZXhwIjoyMDcxMzU1Njk2fQ.6zcfpjAdIfUrQR3iKYkPCn-vdttpEcfTRJskMv9BnRk",
       "bucket": "outputimages",
       "base_file_name": "image",
