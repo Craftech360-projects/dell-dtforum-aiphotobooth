@@ -176,8 +176,9 @@ class _OutputScreenState extends State<OutputScreen> {
       // Instead, return a message or a placeholder URL
       return 'Image too large for QR code. Please use the app to download.';
     }
-    // For URLs, use them directly
-    return widget.imageUrl;
+    // For URLs, use the download page URL
+    final encodedImageUrl = Uri.encodeComponent(widget.imageUrl);
+    return 'https://dell-photobooth-2025-git-download-feature-craftech360-projects.vercel.app/download?img=$encodedImageUrl';
   }
 
   Widget _buildImageDisplay() {
