@@ -6,9 +6,9 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseService {
-  static const String supabaseUrl = 'https://xyrvruzxxekcbvjtqqdf.supabase.co';
+  static const String supabaseUrl = 'https://ozkbnimjuhaweigscdby.supabase.co';
   static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5cnZydXp4eGVrY2J2anRxcWRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4ODU3NDAsImV4cCI6MjA3MjQ2MTc0MH0.2S8SaLawLym1vMXz_RCWG88Fs-A4sykVxB_TCsen1_I';
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im96a2JuaW1qdWhhd2VpZ3NjZGJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEyODc4NDYsImV4cCI6MjA2Njg2Mzg0Nn0.C4OgN-JEBX9ZqnRDXU9XmGnED2pCh3kI82GrHPXtq8U';
 
   static late SupabaseClient _client;
   static bool _initialized = false;
