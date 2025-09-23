@@ -2,30 +2,24 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 class UserSelectionModel extends ChangeNotifier {
-  String? _category; // 'linkedin' or 'ai_transformation'
+  String? _theme; // 'linkedin', 'diwali_costume', 'diwali_celebration', 'crackers', 'pooja'
   String? _gender; // 'male' or 'female'
-  String? _transformationType; // 'Professional Edge', 'Futuristic Vision', 'Playful Fun'
-  String? _transformationOption; // Specific option selected
-  String? _selectedCharacter; // Selected character for AI transformation
   String? _userName; // User's name
   String? _userEmail; // User's email
   String? _processedImageUrl; // URL of processed image from backend
   Uint8List? _capturedImage;
 
   // Getters
-  String? get category => _category;
+  String? get theme => _theme;
   String? get gender => _gender;
-  String? get transformationType => _transformationType;
-  String? get transformationOption => _transformationOption;
-  String? get selectedCharacter => _selectedCharacter;
   String? get userName => _userName;
   String? get userEmail => _userEmail;
   String? get processedImageUrl => _processedImageUrl;
   Uint8List? get capturedImage => _capturedImage;
 
   // Setters
-  void setCategory(String category) {
-    _category = category;
+  void setTheme(String theme) {
+    _theme = theme;
     notifyListeners();
   }
 
@@ -34,19 +28,8 @@ class UserSelectionModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTransformation(String type, String option) {
-    _transformationType = type;
-    _transformationOption = option;
-    notifyListeners();
-  }
-
   void setCapturedImage(Uint8List image) {
     _capturedImage = image;
-    notifyListeners();
-  }
-
-  void setSelectedCharacter(String character) {
-    _selectedCharacter = character;
     notifyListeners();
   }
 
@@ -62,11 +45,8 @@ class UserSelectionModel extends ChangeNotifier {
   }
 
   void clearAll() {
-    _category = null;
+    _theme = null;
     _gender = null;
-    _transformationType = null;
-    _transformationOption = null;
-    _selectedCharacter = null;
     _userName = null;
     _userEmail = null;
     _processedImageUrl = null;
@@ -76,10 +56,8 @@ class UserSelectionModel extends ChangeNotifier {
 
   Map<String, dynamic> toMap() {
     return {
-      'category': _category,
+      'theme': _theme,
       'gender': _gender,
-      'transformationType': _transformationType,
-      'transformationOption': _transformationOption,
       'hasImage': _capturedImage != null,
     };
   }

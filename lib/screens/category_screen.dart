@@ -7,6 +7,73 @@ import 'package:provider/provider.dart';
 class CategoryScreen extends StatelessWidget {
   const CategoryScreen({super.key});
 
+  Widget _buildThemeOption(BuildContext context, String themeId, String title, String iconPath) {
+    return GestureDetector(
+      onTap: () {
+        debugPrint('$themeId theme selected');
+        context.read<UserSelectionModel>().setTheme(themeId);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const GenderScreen(),
+          ),
+        ).then((_) {
+          debugPrint('Returned from GenderScreen');
+        });
+      },
+      child: Container(
+        width: 280,
+        height: 300,
+        padding: const EdgeInsets.all(30),
+        decoration: const BoxDecoration(
+          shape: BoxShape.rectangle,
+          borderRadius: BorderRadius.zero,
+          color: Color(0xFF0B7C84),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              iconPath,
+              width: 80,
+              height: 80,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: 80,
+                  height: 80,
+                  color: AppColors.white.withOpacity(0.3),
+                  child: const Icon(
+                    Icons.image,
+                    size: 40,
+                    color: AppColors.white,
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 30),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w300,
+                height: 1.1,
+                color: AppColors.white,
+              ),
+            ),
+            const SizedBox(height: 15),
+            Container(
+              height: 12,
+              width: 80,
+              color: AppColors.white,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -31,7 +98,7 @@ class CategoryScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text(
-                  "What's your\ntransformation\nvibe today?",
+                  "Choose your\nDiwali theme",
                   style: TextStyle(
                     fontSize: 72,
                     fontWeight: FontWeight.w300,
@@ -39,117 +106,42 @@ class CategoryScreen extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 83),
+                const SizedBox(height: 50),
 
-                Row(
+                // Grid of theme options
+                Wrap(
+                  spacing: 20,
+                  runSpacing: 20,
                   children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          debugPrint('LinkedIn category selected');
-                          context.read<UserSelectionModel>().setCategory(
-                            'linkedin',
-                          );
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const GenderScreen(),
-                            ),
-                          ).then((_) {
-                            debugPrint('Returned from GenderScreen');
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(40),
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.rectangle,
-                            borderRadius: BorderRadius.zero,
-                            color: Color(0xFF0B7C84),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Image.asset(
-                                "assets/icons/linkedin.png",
-                                width: 123,
-                                height: 123,
-                              ),
-                              const SizedBox(height: 60),
-                              const Text(
-                                "Snap your\nLinkedIn picture",
-                                style: TextStyle(
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.w300,
-                                  height: 1.1,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              Container(
-                                height: 18,
-                                width: 122,
-                                color: AppColors.white,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    _buildThemeOption(
+                      context,
+                      'linkedin',
+                      'LinkedIn\nProfessional',
+                      'assets/icons/linkedin.png',
                     ),
-                    const SizedBox(width: 40),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          debugPrint('AI Transformation category selected');
-                          context.read<UserSelectionModel>().setCategory(
-                            'ai_transformation',
-                          );
-                          // Navigate to Gender screen first, then to Transformation screen
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const GenderScreen(),
-                            ),
-                          ).then((_) {
-                            debugPrint('Returned from GenderScreen');
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(40),
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.rectangle,
-                            borderRadius: BorderRadius.zero,
-                            color: Color(0xFF0B7C84),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Image.asset(
-                                "assets/icons/ai-transformation.png",
-                                width: 123,
-                                height: 123,
-                              ),
-                              const SizedBox(height: 60),
-                              const Text(
-                                "AI\nTransformation",
-                                style: TextStyle(
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.w300,
-                                  height: 1.1,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              Container(
-                                height: 18,
-                                width: 122,
-                                color: AppColors.white,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    _buildThemeOption(
+                      context,
+                      'diwali_costume',
+                      'Diwali\nCostume',
+                      'assets/icons/diwali-costume.png',
+                    ),
+                    _buildThemeOption(
+                      context,
+                      'diwali_celebration',
+                      'Diwali\nCelebration',
+                      'assets/icons/diwali-celebration.png',
+                    ),
+                    _buildThemeOption(
+                      context,
+                      'crackers',
+                      'Crackers\nTheme',
+                      'assets/icons/crackers.png',
+                    ),
+                    _buildThemeOption(
+                      context,
+                      'pooja',
+                      'Pooja\nTheme',
+                      'assets/icons/pooja.png',
                     ),
                   ],
                 ),

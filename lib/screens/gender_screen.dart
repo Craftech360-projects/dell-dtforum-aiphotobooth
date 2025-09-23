@@ -1,7 +1,6 @@
 import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:dell_photobooth_2025/screens/face_capture_screen.dart';
-import 'package:dell_photobooth_2025/screens/transformation_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -50,28 +49,14 @@ class GenderScreen extends StatelessWidget {
                           debugPrint('Male gender selected');
                           final userModel = context.read<UserSelectionModel>();
                           userModel.setGender('male');
-                          
-                          // Check category to determine next screen
-                          final category = userModel.category;
-                          debugPrint('Category: $category');
-                          
-                          if (category == 'linkedin') {
-                            debugPrint('Navigating to FaceCaptureScreen...');
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const FaceCaptureScreen(),
-                              ),
-                            );
-                          } else {
-                            debugPrint('Navigating to TransformationScreen...');
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TransformationScreen(),
-                              ),
-                            );
-                          }
+
+                          debugPrint('Navigating to FaceCaptureScreen...');
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const FaceCaptureScreen(),
+                            ),
+                          );
                         },
                         child: Container(
                         padding: const EdgeInsets.all(40),
@@ -117,28 +102,14 @@ class GenderScreen extends StatelessWidget {
                         debugPrint('Female gender selected');
                         final userModel = context.read<UserSelectionModel>();
                         userModel.setGender('female');
-                        
-                        // Check category to determine next screen
-                        final category = userModel.category;
-                        debugPrint('Category: $category');
-                        
-                        if (category == 'linkedin') {
-                          debugPrint('Navigating to FaceCaptureScreen...');
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const FaceCaptureScreen(),
-                            ),
-                          );
-                        } else {
-                          debugPrint('Navigating to TransformationScreen...');
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const TransformationScreen(),
-                            ),
-                          );
-                        }
+
+                        debugPrint('Navigating to FaceCaptureScreen...');
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FaceCaptureScreen(),
+                          ),
+                        );
                       },
                       child: Container(
                         padding: const EdgeInsets.all(40),

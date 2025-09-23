@@ -3,12 +3,10 @@ import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
-import 'package:dell_photobooth_2025/config/app_config.dart';
 import 'package:dell_photobooth_2025/core/app_colors.dart';
 import 'package:dell_photobooth_2025/models/user_selection_model.dart';
 import 'package:dell_photobooth_2025/screens/processing_screen.dart';
-import 'package:dell_photobooth_2025/services/faceswap_service.dart';
-import 'package:dell_photobooth_2025/services/gemini_service.dart';
+import 'package:dell_photobooth_2025/services/theme_processing_service.dart';
 import 'package:dell_photobooth_2025/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -141,14 +139,11 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     final selections = context.read<UserSelectionModel>().toMap();
     debugPrint('User selections: $selections');
 
-    final userModel = context.read<UserSelectionModel>();
-    final isLinkedIn = userModel.category == 'linkedin';
-
     if (mounted) {
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => ProcessingScreen(
-            onProcess: isLinkedIn ? _processLinkedIn : _processWithRunpod,
+            onProcess: _processWithTheme,
           ),
         ),
       );
@@ -161,164 +156,38 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     }
   }
 
-  Future<String?> _processWithRunpod() async {
+
+  Future<String?> _processWithTheme() async {
     try {
       final userModel = context.read<UserSelectionModel>();
       final capturedImage = userModel.capturedImage;
+      final selectedTheme = userModel.theme ?? 'linkedin';
 
       if (capturedImage == null) {
         debugPrint('No captured image available');
         return null;
       }
 
-      // Crop the image to portrait aspect ratio (2:3) before processing - same as LinkedIn
-      final croppedImage = _cropImageToPortrait(capturedImage);
-
-      final userImageUrl = await SupabaseService().uploadImageBytes(
-        croppedImage,
-        null,
-        bucket: 'outputimages',
-        prefix: 'user_',
-      );
-
-      if (userImageUrl == null) {
-        debugPrint('Failed to upload user image to Supabase');
-        return null;
-      }
-
-      final uniqueId = const Uuid().v4();
-      final name = userModel.userName ?? 'Guest';
-      final email = userModel.userEmail ?? 'guest@example.com';
-      final gender = userModel.gender ?? 'male';
-
-      await SupabaseService.client.from('event_output_images').insert({
-        'unique_id': uniqueId,
-        'name': name,
-        'email': email,
-        'gender': gender,
-        'image_url': userImageUrl,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-
-      final transformationType =
-          userModel.transformationOption ??
-          userModel.transformationType ??
-          'AI Transformation';
-
-      final themeName = _getThemeNameFromTransformation(transformationType);
-
-      await SupabaseService().selectAndUpdateRandomCharacterImage(
-        uniqueId: uniqueId,
-        gender: gender,
-        themeName: themeName,
-      );
-
-      final record = await SupabaseService.client
-          .from('event_output_images')
-          .select('characterimage')
-          .eq('unique_id', uniqueId)
-          .single();
-
-      final characterImageUrl = record['characterimage'] as String?;
-
-      if (characterImageUrl == null) {
-        debugPrint('Failed to get character image URL');
-        return null;
-      }
-
-      final result = await FaceSwapService.sendFaceSwapRequest(
-        sourceImageUrl: userImageUrl,
-        targetImageUrl: characterImageUrl,
-        uniqueId: uniqueId,
-        apiUrl: AppConfig.runpodEndpointUrl,
-        apiKey: AppConfig.runpodApiKey,
-      );
-
-      if (result['status'] != 'success') {
-        debugPrint('Failed to start face swap job: ${result['message']}');
-        return null;
-      }
-
-      final jobId = result['job_id'];
-      const maxAttempts = 60;
-      const pollInterval = Duration(seconds: 3);
-
-      bool foundImage = false;
-
-      for (int i = 0; i < maxAttempts; i++) {
-        if (!mounted) {
-          debugPrint('Widget no longer mounted, stopping polling');
-          break;
-        }
-
-        await Future.delayed(pollInterval);
-
-        if (jobId != null) {
-          final jobComplete = await FaceSwapService.checkJobStatus(
-            jobId: jobId,
-            apiUrl: AppConfig.runpodEndpointUrl,
-            apiKey: AppConfig.runpodApiKey,
-          );
-
-          if (!jobComplete && i < maxAttempts - 1) {
-            debugPrint('Job still processing, attempt ${i + 1}/$maxAttempts');
-            continue;
-          }
-        }
-
-        final outputImage = await SupabaseService().getLatestOutputImage(
-          uniqueId,
-        );
-
-        if (outputImage != null && outputImage.isNotEmpty) {
-          debugPrint('Output image received: $outputImage');
-          userModel.setProcessedImageUrl(outputImage);
-          foundImage = true;
-          return outputImage;
-        }
-
-        debugPrint('Polling attempt ${i + 1}/$maxAttempts');
-      }
-
-      if (!foundImage) {
-        debugPrint('Timeout waiting for output image');
-      }
-      return null;
-    } on Exception catch (e) {
-      debugPrint('Error in Runpod workflow processing: $e');
-      return null;
-    }
-  }
-
-  Future<String?> _processLinkedIn() async {
-    try {
-      final userModel = context.read<UserSelectionModel>();
-      final capturedImage = userModel.capturedImage;
-
-      if (capturedImage == null) {
-        debugPrint('No captured image available');
-        return null;
-      }
-
-      debugPrint('🔥 Starting Gemini LinkedIn headshot generation');
+      debugPrint('🎨 Starting theme processing: $selectedTheme');
 
       // Crop the image to portrait aspect ratio (2:3) before processing
       final croppedImage = _cropImageToPortrait(capturedImage);
 
-      // Use Gemini service for LinkedIn professional headshot generation
-      final generatedImageBytes = await GeminiService.generateLinkedInHeadshot(
+      // Use theme processing service
+      final generatedImageBytes = await ThemeProcessingService.processImageWithTheme(
         inputImageBytes: croppedImage,
+        theme: selectedTheme,
       );
 
       if (generatedImageBytes == null) {
-        debugPrint('❌ Failed to generate LinkedIn headshot with Gemini');
+        debugPrint('❌ Failed to generate themed image');
         return null;
       }
 
-      debugPrint('✅ Successfully generated LinkedIn headshot with Gemini');
+      debugPrint('✅ Successfully generated themed image');
       debugPrint('Generated image size: ${generatedImageBytes.length} bytes');
 
-      // Now upload the cropped user image to Supabase
+      // Upload the cropped user image to Supabase
       final userImageUrl = await SupabaseService().uploadImageBytes(
         croppedImage,
         null,
@@ -342,6 +211,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         'name': name,
         'email': email,
         'gender': gender,
+        'theme': selectedTheme,
         'image_url': userImageUrl,
         'created_at': DateTime.now().toIso8601String(),
       });
@@ -351,7 +221,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         generatedImageBytes,
         uniqueId,
         bucket: 'outputimages',
-        prefix: 'linkedin_',
+        prefix: '${selectedTheme}_',
       );
 
       if (outputImageUrl == null) {
@@ -365,14 +235,14 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
           .update({'output': outputImageUrl})
           .eq('unique_id', uniqueId);
 
-      debugPrint('🎉 LinkedIn headshot processing completed: $outputImageUrl');
+      debugPrint('🎉 Theme processing completed: $outputImageUrl');
 
       // Set the processed image URL in the user model
       userModel.setProcessedImageUrl(outputImageUrl);
 
       return outputImageUrl;
     } on Exception catch (e) {
-      debugPrint('❌ Error in Gemini LinkedIn processing: $e');
+      debugPrint('❌ Error in theme processing: $e');
       return null;
     }
   }
@@ -444,46 +314,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     }
   }
 
-  String _getThemeNameFromTransformation(String transformationType) {
-    final cleanedType = transformationType.trim();
-
-    final Map<String, String> transformationToTheme = {
-      'Sustainability Champions': 'sustainability_champions',
-      'Futuristic Workspace': 'futuristic_workspace',
-      'Cyberpunk Future': 'cyberpunk_future',
-      'Space Explorer': 'space_explorer',
-      'Extreme Sports': 'extreme_sports',
-      'Fantasy Kingdom': 'fantasy_kingdom',
-      'Professional Edge': 'futuristic_workspace',
-      'Futuristic Vision': 'cyberpunk_future',
-      'Playful Fun': 'extreme_sports',
-      'AI Transformation': 'futuristic_workspace',
-    };
-
-    String? matchedTheme = transformationToTheme[cleanedType];
-
-    if (matchedTheme == null) {
-      final lowerType = cleanedType.toLowerCase();
-
-      if (lowerType.contains('sustainability')) {
-        matchedTheme = 'sustainability_champions';
-      } else if (lowerType.contains('futuristic') ||
-          lowerType.contains('workspace')) {
-        matchedTheme = 'futuristic_workspace';
-      } else if (lowerType.contains('cyberpunk')) {
-        matchedTheme = 'cyberpunk_future';
-      } else if (lowerType.contains('space')) {
-        matchedTheme = 'space_explorer';
-      } else if (lowerType.contains('extreme') ||
-          lowerType.contains('sports')) {
-        matchedTheme = 'extreme_sports';
-      } else if (lowerType.contains('fantasy')) {
-        matchedTheme = 'fantasy_kingdom';
-      }
-    }
-
-    return matchedTheme ?? 'futuristic_workspace';
-  }
 
   @override
   void dispose() {

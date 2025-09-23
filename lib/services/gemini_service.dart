@@ -182,6 +182,134 @@ Requirements:
     }
   }
 
+  static Future<Uint8List?> generateThemedImage({
+    required Uint8List inputImageBytes,
+    required String prompt,
+  }) async {
+    try {
+      debugPrint('🎨 Starting Gemini themed image generation');
+
+      // Use direct HTTP API call for web to avoid streaming issues
+      if (kIsWeb) {
+        return await _generateThemedImageWeb(inputImageBytes, prompt);
+      }
+
+      final imagePart = DataPart('image/jpeg', inputImageBytes);
+      final textPart = TextPart(prompt);
+
+      debugPrint('🚀 Sending themed request to Gemini API');
+
+      final response = await _geminiModel.generateContent([
+        Content.multi([textPart, imagePart])
+      ]);
+
+      debugPrint('📨 Received themed response from Gemini API');
+
+      if (response.candidates.isNotEmpty) {
+        final candidate = response.candidates.first;
+
+        if (candidate.content.parts.isNotEmpty) {
+          for (final part in candidate.content.parts) {
+            if (part is DataPart && part.mimeType.startsWith('image/')) {
+              debugPrint('✅ Successfully generated themed image');
+              debugPrint('Generated image size: ${part.bytes.length} bytes');
+              return part.bytes;
+            }
+          }
+        }
+      }
+
+      debugPrint('❌ No image found in Gemini themed response');
+
+      if (response.text != null && response.text!.isNotEmpty) {
+        debugPrint('Gemini themed response text: ${response.text}');
+      }
+
+      return null;
+    } on GenerativeAIException catch (e) {
+      debugPrint('❌ Gemini API themed error: ${e.message}');
+      return null;
+    } on Exception catch (e) {
+      debugPrint('❌ Error generating themed image: $e');
+      return null;
+    }
+  }
+
+  static Future<Uint8List?> _generateThemedImageWeb(
+    Uint8List inputImageBytes,
+    String prompt,
+  ) async {
+    try {
+      debugPrint('🌐 Using web-compatible HTTP API for themed Gemini generation');
+
+      final base64Image = base64Encode(inputImageBytes);
+
+      final requestBody = {
+        'contents': [
+          {
+            'parts': [
+              {'text': prompt},
+              {
+                'inline_data': {
+                  'mime_type': 'image/jpeg',
+                  'data': base64Image,
+                }
+              }
+            ]
+          }
+        ],
+        'generationConfig': {
+          'candidateCount': 1,
+          'maxOutputTokens': 4096,
+        }
+      };
+
+      final response = await http.post(
+        Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${AppConfig.geminiApiKey}',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      debugPrint('📨 Web API themed response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        if (responseData['candidates'] != null &&
+            responseData['candidates'].isNotEmpty) {
+          final candidate = responseData['candidates'][0];
+
+          if (candidate['content'] != null && candidate['content']['parts'] != null) {
+            final parts = candidate['content']['parts'];
+
+            for (int i = 0; i < parts.length; i++) {
+              final part = parts[i];
+
+              if (part['inlineData'] != null) {
+                final imageData = part['inlineData']['data'];
+                final imageBytes = base64Decode(imageData);
+                debugPrint('✅ Successfully generated themed image via web API');
+                debugPrint('Generated image size: ${imageBytes.length} bytes');
+                return imageBytes;
+              }
+            }
+          }
+        }
+      } else {
+        debugPrint('❌ Web API themed error: ${response.statusCode} - ${response.body}');
+      }
+
+      return null;
+    } on Exception catch (e) {
+      debugPrint('❌ Error in web-compatible themed Gemini API: $e');
+      return null;
+    }
+  }
+
   static Future<Map<String, dynamic>> testGeminiConnection() async {
     try {
       const testPrompt = 'Hello, can you generate a simple test image?';
