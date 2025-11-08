@@ -74,7 +74,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
   void _startManualCapture() {
     setState(() {
-      _countdown = 4;
+      _countdown = 3;
     });
 
     _countdownTimer?.cancel();

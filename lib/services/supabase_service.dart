@@ -2,7 +2,6 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseService {
@@ -28,108 +27,6 @@ class SupabaseService {
       throw Exception('Supabase not initialized. Call initialize() first.');
     }
     return _client;
-  }
-
-  /// Get a random character image from Supabase based on gender
-  static Future<Uint8List?> getRandomCharacterImage(String gender) async {
-    try {
-      // Available themes - matching exact folder names in Supabase
-      final themes = [
-        'sustainability_champions',
-        'space_explorer',
-        'cyberpunk_future',
-        'futuristic_workspace',
-        'extreme_sports',
-        'fantasy_kingdom',
-      ];
-
-      // Pick a random theme
-      final random = Random();
-      final randomTheme = themes[random.nextInt(themes.length)];
-
-      // Pick a random image number (1-7)
-      final imageNumber = random.nextInt(7) + 1;
-      final imageNumberStr = imageNumber.toString().padLeft(2, '0');
-
-      // Construct the file path based on the actual Supabase structure
-      // Structure: {gender}/{theme}/Male 01.png
-      final genderFolder = gender.toLowerCase(); // 'male' or 'female'
-      final filePrefix = gender == 'female' ? 'Female' : 'Male';
-      final fileName = '$filePrefix $imageNumberStr.png';
-      final filePath = '$genderFolder/$randomTheme/$fileName';
-
-      debugPrint('Fetching character image: $filePath');
-
-      // Download the image from Supabase storage - using 'themes' bucket
-      final response = await client.storage.from('themes').download(filePath);
-
-      return response;
-    } on Exception catch (e) {
-      debugPrint('Error fetching character image: $e');
-
-      // Try alternative approach with direct URL
-      try {
-        final themes = [
-          'sustainability_champions',
-          'space_explorer',
-          'cyberpunk_future',
-          'futuristic_workspace',
-          'extreme_sports',
-          'fantasy_kingdom',
-        ];
-
-        final random = Random();
-        final randomTheme = themes[random.nextInt(themes.length)];
-        final imageNumber = random.nextInt(7) + 1;
-        final imageNumberStr = imageNumber.toString().padLeft(2, '0');
-        final genderFolder = gender.toLowerCase();
-        final filePrefix = gender == 'female' ? 'Female' : 'Male';
-        final fileName = '$filePrefix $imageNumberStr.png';
-        final filePath = '$genderFolder/$randomTheme/$fileName';
-
-        // Get public URL from 'themes' bucket
-        final publicUrl = client.storage.from('themes').getPublicUrl(filePath);
-
-        // Download using HTTP
-        final response = await http.get(Uri.parse(publicUrl));
-        if (response.statusCode == 200) {
-          debugPrint(
-            'Character image downloaded via HTTP: ${response.bodyBytes.length} bytes',
-          );
-          return response.bodyBytes;
-        }
-      } on Exception catch (e2) {
-        debugPrint('Alternative download also failed: $e2');
-      }
-
-      return null;
-    }
-  }
-
-  /// Upload an image to Supabase storage
-  static Future<String?> uploadImage(
-    Uint8List imageBytes,
-    String folder,
-  ) async {
-    try {
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}.jpg';
-      final filePath = '$folder/$fileName';
-
-      await client.storage
-          .from('photobooth-images')
-          .uploadBinary(filePath, imageBytes);
-
-      final publicUrl = client.storage
-          .from('photobooth-images')
-          .getPublicUrl(filePath);
-
-      debugPrint('Image uploaded successfully: $publicUrl');
-      return publicUrl;
-    } on Exception catch (e) {
-      debugPrint('Error uploading image: $e');
-      return null;
-    }
   }
 
   /// Store participant details in the event_output_images table
@@ -165,8 +62,6 @@ class SupabaseService {
       return null;
     }
   }
-
-  /// NEW FUNCTIONS COPIED FROM PREVIOUS PROJECT
 
   // Upload face image to Supabase storage
   Future<String?> uploadImageBytes(
@@ -209,28 +104,7 @@ class SupabaseService {
       return null;
     }
   }
-
-  Future<String?> uploadUserFaceImageFromPath(String imagePath) async {
-    try {
-      // For web, imagePath is a blob URL or data URL from camera
-      // We need to fetch the data from this URL
-      final response = await http.get(Uri.parse(imagePath));
-      if (response.statusCode == 200) {
-        final result = await uploadImageBytes(
-          response.bodyBytes,
-          null,
-          bucket: 'outputimages',
-          prefix: 'face_',
-        );
-        return result;
-      }
-      return null;
-    } on Exception catch (e) {
-      debugPrint('Error uploading user face image: $e');
-      return null;
-    }
-  }
-
+  
   /// NEW: Selects a random character image from Supabase and updates the table.
   Future<void> selectAndUpdateRandomCharacterImage({
     required String uniqueId,
@@ -248,14 +122,13 @@ class SupabaseService {
       // Images are named like "Male 01.png", "Female 02.png", etc.
       final genderPrefix = gender.toLowerCase() == 'male' ? 'Male' : 'Female';
 
-      // Select a random number from 1 to 7 (7 images per theme)
-      final randomNumber = Random().nextInt(7) + 1;
+      // Select a random number from 1 to 5 (5 images per theme)
+      final randomNumber = Random().nextInt(5) + 1;
       final imageNumber = randomNumber.toString().padLeft(
         2,
         '0',
       ); // Ensures "01", "02", etc.
-      final imageName =
-          '$genderPrefix $imageNumber.png'; // Note the space between prefix and number
+      final imageName = '$genderPrefix $imageNumber.png';
 
       final fullPathInBucket = '$genderFolder/$themeFolderName/$imageName';
 
