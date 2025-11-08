@@ -16,7 +16,7 @@ class CategoryScreen extends StatelessWidget {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/background-two.png"),
+            image: AssetImage("assets/images/background-one.png"),
             fit: BoxFit.cover,
           ),
         ),
@@ -24,7 +24,7 @@ class CategoryScreen extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.topLeft,
-              child: Image.asset("assets/images/dell-logo.png", width: 192),
+              child: Image.asset("assets/images/dell-logo.png", width: 517),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,6 +36,7 @@ class CategoryScreen extends StatelessWidget {
                     fontSize: 72,
                     fontWeight: FontWeight.w300,
                     height: 1.1,
+                  
                   ),
                 ),
 
@@ -64,7 +65,7 @@ class CategoryScreen extends StatelessWidget {
                           decoration: const BoxDecoration(
                             shape: BoxShape.rectangle,
                             borderRadius: BorderRadius.zero,
-                            color: Color(0xFF0B7C84),
+                            color: Color(0xFF1E429A),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,6 +84,7 @@ class CategoryScreen extends StatelessWidget {
                                   fontSize: 40,
                                   fontWeight: FontWeight.w300,
                                   height: 1.1,
+                                  color: Colors.white
                                 ),
                               ),
                               const SizedBox(height: 20),
@@ -119,7 +121,7 @@ class CategoryScreen extends StatelessWidget {
                           decoration: const BoxDecoration(
                             shape: BoxShape.rectangle,
                             borderRadius: BorderRadius.zero,
-                            color: Color(0xFF0B7C84),
+                            color: Color(0xFF1E429A),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,6 +140,7 @@ class CategoryScreen extends StatelessWidget {
                                   fontSize: 40,
                                   fontWeight: FontWeight.w300,
                                   height: 1.1,
+                                   color: Colors.white  
                                 ),
                               ),
                               const SizedBox(height: 20),
@@ -162,6 +165,7 @@ class CategoryScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                       vertical: 18,
                       horizontal: 36,
+
                     ),
                   ),
                   child: Row(
@@ -175,6 +179,8 @@ class CategoryScreen extends StatelessWidget {
                           fontSize: 48,
                           fontWeight: FontWeight.w500,
                           height: 1.1,
+                          // color: AppColors.white,
+                          // backgroundColor: Color(0xFF1E429A),
                         ),
                       ),
                     ],

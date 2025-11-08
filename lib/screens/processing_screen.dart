@@ -81,7 +81,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/background-two.png"),
+            image: AssetImage("assets/images/background-one.png"),
             fit: BoxFit.cover,
           ),
         ),
@@ -91,7 +91,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
             Positioned(
               left: 93,
               top: 104,
-              child: Image.asset("assets/images/dell-logo.png", width: 192),
+              child: Image.asset("assets/images/dell-logo.png", width: 517),
             ),
 
             // Main Content
@@ -113,7 +113,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                         child: CircularProgressIndicator(
                           strokeWidth: 8,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Color(0xFF0B7C84),
+                            Color(0xFF1E429A),
                           ),
                         ),
                       ),

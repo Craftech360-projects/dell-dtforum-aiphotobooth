@@ -94,49 +94,49 @@ class AppTheme {
     // Text Theme
     textTheme: const TextTheme(
       headlineLarge: TextStyle(
-        color: AppColors.white,
+        color: AppColors.black,
         fontSize: 26,
         fontWeight: FontWeight.w600,
       ),
       headlineMedium: TextStyle(
-        color: AppColors.white,
+        color: AppColors.black,
         fontSize: 24,
         fontWeight: FontWeight.w600,
       ),
       headlineSmall: TextStyle(
-        color: AppColors.white,
+        color: AppColors.black,
         fontSize: 22,
         fontWeight: FontWeight.w600,
       ),
       titleLarge: TextStyle(
         fontSize: 19,
         fontWeight: FontWeight.w500,
-        color: AppColors.white,
+        color: AppColors.black,
       ),
       titleMedium: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w500,
-        color: AppColors.white,
+        color: AppColors.black,
       ),
       titleSmall: TextStyle(
         fontSize: 17,
         fontWeight: FontWeight.w500,
-        color: AppColors.white,
+        color: AppColors.black,
       ),
       bodyLarge: TextStyle(
         fontWeight: FontWeight.w500,
         fontSize: 16,
-        color: AppColors.white,
+        color: AppColors.black,
       ),
       bodyMedium: TextStyle(
         fontWeight: FontWeight.w500,
         fontSize: 14.5,
-        color: AppColors.white,
+        color: AppColors.black,
       ),
       bodySmall: TextStyle(
         fontWeight: FontWeight.w500,
         fontSize: 13,
-        color: AppColors.white,
+        color: AppColors.black,
       ),
     ),
   );

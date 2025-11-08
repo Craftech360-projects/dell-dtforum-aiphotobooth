@@ -66,7 +66,7 @@ class _TransformationScreenState extends State<TransformationScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/background-two.png"),
+            image: AssetImage("assets/images/background-one.png"),
             fit: BoxFit.cover,
           ),
         ),
@@ -74,7 +74,7 @@ class _TransformationScreenState extends State<TransformationScreen> {
           children: [
             Align(
               alignment: Alignment.topLeft,
-              child: Image.asset("assets/images/dell-logo.png", width: 192),
+              child: Image.asset("assets/images/dell-logo.png", width: 517),
             ),
             Positioned(
               left: 0,
@@ -107,8 +107,8 @@ class _TransformationScreenState extends State<TransformationScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: isExpanded
-                                  ? const Color(0xFF0B7C84)
-                                  : const Color(0xFF0A5F63),
+                                  ? const Color(0xFF1E429A)
+                                  : const Color(0xFF1E429A),
                               borderRadius: BorderRadius.zero,
                             ),
                             child: Row(
@@ -188,7 +188,7 @@ class _TransformationScreenState extends State<TransformationScreen> {
                                     ),
                                     padding: const EdgeInsets.all(32),
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFF0A5F63),
+                                      color: Color(0xFF1E429A),
                                       borderRadius: BorderRadius.zero,
                                     ),
                                     child: Column(
@@ -258,7 +258,7 @@ class _TransformationScreenState extends State<TransformationScreen> {
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.white.withValues(alpha: 0.9),
-                      foregroundColor: const Color(0xFF0A5F63),
+                      foregroundColor: const Color(0xFF1E429A),
                       padding: const EdgeInsets.symmetric(
                         vertical: 18,
                         horizontal: 36,
@@ -276,6 +276,7 @@ class _TransformationScreenState extends State<TransformationScreen> {
                             fontWeight: FontWeight.w500,
                             height: 1.1,
                             color: AppColors.black,
+                            
                           ),
                         ),
                       ],

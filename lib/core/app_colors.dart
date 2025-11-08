@@ -32,7 +32,7 @@ class AppColors {
 
   // Neutrals
   static const Color white = Color(0xFFFFFFFF); // True white
-  static const Color lightWhite = Color(0xFFF8F8F8); // Light background white
+  static const Color lightWhite = Color(0x00000000); // Light background white
   static const Color extraLightGrey = Color(0xFFFEFEFE); // Very light grey
   static const Color lavenderWhite = Color(0xFFF5EEFC); // Soft lavender-white
   static const Color black = Color(0xFF1E1E1E); // Rich black

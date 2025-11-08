@@ -500,7 +500,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/background-two.png"),
+            image: AssetImage("assets/images/background-one.png"),
             fit: BoxFit.cover,
           ),
         ),
@@ -510,7 +510,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
             Positioned(
               left: 93,
               top: 104,
-              child: Image.asset("assets/images/dell-logo.png", width: 192),
+              child: Image.asset("assets/images/dell-logo.png", width: 517),
             ),
 
             // Main Content
@@ -525,7 +525,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                       fontSize: 76,
                       fontWeight: FontWeight.w300,
                       height: 1.1,
-                      color: AppColors.white,
+                      color: AppColors.black,
                     ),
                   ),
                   const SizedBox(height: 40),
@@ -536,7 +536,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                     height: 1050,
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: const Color(0xFF0B7C84),
+                        color: const Color(0xFF1E429A),
                         width: 4,
                       ),
                       borderRadius: BorderRadius.circular(12),
@@ -581,7 +581,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                             )
                           : const Center(
                               child: CircularProgressIndicator(
-                                color: Color(0xFF0B7C84),
+                                color: Color(0xFF1E429A),
                               ),
                             ),
                     ),
@@ -601,7 +601,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                           ? null
                           : _startManualCapture,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0B7C84),
+                        backgroundColor: const Color(0xFF1E429A),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(50),
                         ),

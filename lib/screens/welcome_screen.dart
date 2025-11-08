@@ -9,7 +9,7 @@ class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        padding: const EdgeInsets.only(left: 132, top: 104),
+        padding: const EdgeInsets.only(left: 93, top: 104),
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
@@ -22,7 +22,7 @@ class WelcomeScreen extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.topLeft,
-              child: Image.asset("assets/images/dell-logo.png", width: 192),
+              child: Image.asset("assets/images/dell-logo.png", width: 517),
             ),
             Expanded(
               child: Column(
@@ -35,10 +35,11 @@ class WelcomeScreen extends StatelessWidget {
                       fontSize: 150,
                       fontWeight: FontWeight.w300,
                       height: 1.1,
+                      color: AppColors.black
                     ),
                   ),
                   const SizedBox(height: 35),
-                  Container(width: 169, height: 45, color: AppColors.white),
+                  Container(width: 169, height: 45, color: Colors.white),
                   const SizedBox(height: 60),
                   const Text(
                     "AI transforms your photo\ninto worlds of play, art, and\nwonder - instantly.",
@@ -46,6 +47,7 @@ class WelcomeScreen extends StatelessWidget {
                       fontSize: 48,
                       fontWeight: FontWeight.w400,
                       height: 1.1,
+                      color: AppColors.black,
                     ),
                   ),
                   const SizedBox(height: 120),
@@ -59,6 +61,7 @@ class WelcomeScreen extends StatelessWidget {
                       );
                     },
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF1E429A),
                       padding: const EdgeInsets.symmetric(
                         vertical: 18,
                         horizontal: 136,
@@ -70,6 +73,7 @@ class WelcomeScreen extends StatelessWidget {
                         fontSize: 48,
                         fontWeight: FontWeight.w500,
                         height: 1.1,
+                        color: AppColors.white
                       ),
                     ),
                   ),

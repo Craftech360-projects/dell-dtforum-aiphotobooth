@@ -17,7 +17,7 @@ class GenderScreen extends StatelessWidget {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/background-two.png"),
+            image: AssetImage("assets/images/background-one.png"),
             fit: BoxFit.cover,
           ),
         ),
@@ -25,7 +25,7 @@ class GenderScreen extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.topLeft,
-              child: Image.asset("assets/images/dell-logo.png", width: 192),
+              child: Image.asset("assets/images/dell-logo.png", width: 517),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,7 +78,7 @@ class GenderScreen extends StatelessWidget {
                         decoration: const BoxDecoration(
                           shape: BoxShape.rectangle,
                           borderRadius: BorderRadius.zero,
-                          color: Color(0xFF0B7C84),
+                          color: Color(0xFF1E429A),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,6 +97,7 @@ class GenderScreen extends StatelessWidget {
                                 fontSize: 40,
                                 fontWeight: FontWeight.w300,
                                 height: 1.1,
+                                   color: AppColors.white,
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -145,7 +146,7 @@ class GenderScreen extends StatelessWidget {
                         decoration: const BoxDecoration(
                           shape: BoxShape.rectangle,
                           borderRadius: BorderRadius.zero,
-                          color: Color(0xFF0B7C84),
+                          color: Color(0xFF1E429A),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,6 +165,7 @@ class GenderScreen extends StatelessWidget {
                                 fontSize: 40,
                                 fontWeight: FontWeight.w300,
                                 height: 1.1,
+                                   color: AppColors.white,
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -201,6 +203,7 @@ class GenderScreen extends StatelessWidget {
                           fontSize: 48,
                           fontWeight: FontWeight.w500,
                           height: 1.1,
+                          
                         ),
                       ),
                     ],

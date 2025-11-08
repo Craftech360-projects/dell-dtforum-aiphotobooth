@@ -46,7 +46,7 @@ class _OutputScreenState extends State<OutputScreen> {
             Positioned(
               left: 93,
               top: 104,
-              child: Image.asset("assets/images/dell-logo.png", width: 192),
+              child: Image.asset("assets/images/dell-logo.png", width: 517),
             ),
 
             // Main Content
@@ -62,7 +62,7 @@ class _OutputScreenState extends State<OutputScreen> {
                       fontSize: 76,
                       fontWeight: FontWeight.w300,
                       height: 1.1,
-                      color: AppColors.white,
+                      color: AppColors.black,
                     ),
                   ),
 
@@ -76,7 +76,7 @@ class _OutputScreenState extends State<OutputScreen> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFF0B7C84),
+                        color: const Color(0xFF1E429A),
                         width: 3,
                       ),
                     ),
@@ -105,7 +105,7 @@ class _OutputScreenState extends State<OutputScreen> {
                           data: _getQrData(),
                           version: QrVersions.auto,
                           size: 150,
-                          backgroundColor: AppColors.white,
+                          // backgroundColor: AppColors.white,
                           errorCorrectionLevel: QrErrorCorrectLevel.L,
                         ),
                       ),
@@ -120,7 +120,7 @@ class _OutputScreenState extends State<OutputScreen> {
                             style: TextStyle(
                               fontSize: 40,
                               fontWeight: FontWeight.w500,
-                              color: AppColors.white,
+                              color: AppColors.black,
                             ),
                           ),
 
@@ -130,7 +130,9 @@ class _OutputScreenState extends State<OutputScreen> {
                           ElevatedButton(
                             onPressed: _isLoading ? null : _navigateToHome,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.white,
+                              backgroundColor: const Color(0xFF1E429A),
+
+                              // backgroundColor: AppColors.white,
                               foregroundColor: AppColors.black,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 60,
@@ -145,6 +147,8 @@ class _OutputScreenState extends State<OutputScreen> {
                               style: TextStyle(
                                 fontSize: 44,
                                 fontWeight: FontWeight.w500,
+                                backgroundColor: const Color(0xFF1E429A),
+                                color: AppColors.white
                               ),
                             ),
                           ),
