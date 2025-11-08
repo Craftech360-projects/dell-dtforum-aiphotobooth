@@ -15,45 +15,29 @@ class FaceSwapService {
       // Send URLs directly instead of base64 to avoid size limits
       // The handler will download the images
       final payload = {
-        'input': {
-          'source_image_url': sourceImageUrl,
-          'target_image_url': targetImageUrl,
-          'unique_id': uniqueId,
-        },
+        'input': {'source_image_url': sourceImageUrl, 'target_image_url': targetImageUrl, 'unique_id': uniqueId},
       };
 
       // Send request to RunPod
-      final headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $apiKey',
-      };
+      final headers = {'Content-Type': 'application/json', 'Authorization': 'Bearer $apiKey'};
 
       // Ensure URL is properly formatted
-      final cleanApiUrl = apiUrl.endsWith('/')
-          ? apiUrl.substring(0, apiUrl.length - 1)
-          : apiUrl;
-      final runUrl = '$cleanApiUrl/run';
+      // Remove trailing slash if present
+      final cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.substring(0, apiUrl.length - 1) : apiUrl;
 
-      final response = await http.post(
-        Uri.parse(runUrl),
-        headers: headers,
-        body: jsonEncode(payload),
-      );
+      // Only append /run if it's not already there
+      final runUrl = cleanApiUrl.endsWith('/run') ? cleanApiUrl : '$cleanApiUrl/run';
+
+      final response = await http.post(Uri.parse(runUrl), headers: headers, body: jsonEncode(payload));
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
 
-        return {
-          'status': 'success',
-          'job_id': responseData['id'],
-          'message': 'Face swap job started successfully',
-        };
+        return {'status': 'success', 'job_id': responseData['id'], 'message': 'Face swap job started successfully'};
       } else {
         debugPrint('RunPod API error - Status: ${response.statusCode}');
         debugPrint('Response body: ${response.body}');
-        throw Exception(
-          'Failed to start face swap job: ${response.statusCode} - ${response.body}',
-        );
+        throw Exception('Failed to start face swap job: ${response.statusCode} - ${response.body}');
       }
     } on Exception catch (e) {
       debugPrint('Error in face swap request: $e');
@@ -61,19 +45,18 @@ class FaceSwapService {
     }
   }
 
-  static Future<bool> checkJobStatus({
-    required String jobId,
-    required String apiUrl,
-    required String apiKey,
-  }) async {
+  static Future<bool> checkJobStatus({required String jobId, required String apiUrl, required String apiKey}) async {
     try {
       final headers = {'Authorization': 'Bearer $apiKey'};
 
       // Ensure URL is properly formatted
-      final cleanApiUrl = apiUrl.endsWith('/')
-          ? apiUrl.substring(0, apiUrl.length - 1)
-          : apiUrl;
-      final statusUrl = '$cleanApiUrl/status/$jobId';
+      // Remove trailing slash if present
+      final cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.substring(0, apiUrl.length - 1) : apiUrl;
+
+      // Handle if the base URL already contains /run or other paths
+      // For status endpoint, we need the base + /status/{jobId}
+      final baseUrl = cleanApiUrl.replaceAll(RegExp(r'/run$'), '');
+      final statusUrl = '$baseUrl/status/$jobId';
 
       final response = await http.get(Uri.parse(statusUrl), headers: headers);
 
