@@ -40,13 +40,40 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     try {
       _cameras = await availableCameras();
       if (_cameras != null && _cameras!.isNotEmpty) {
-        final frontCamera = _cameras!.firstWhere(
-          (camera) => camera.lensDirection == CameraLensDirection.front,
-          orElse: () => _cameras!.first,
-        );
+        // Log all available cameras for debugging
+        debugPrint('Available cameras:');
+        for (var i = 0; i < _cameras!.length; i++) {
+          debugPrint('  [$i] ${_cameras![i].name} - ${_cameras![i].lensDirection}');
+        }
+
+        // Prioritize camera selection:
+        // 1. External camera (lensDirection == external)
+        // 2. Back camera (could be external on desktop)
+        // 3. First available camera
+        CameraDescription selectedCamera;
+
+        // Try to find external camera first
+        try {
+          selectedCamera = _cameras!.firstWhere(
+            (camera) => camera.lensDirection == CameraLensDirection.external,
+          );
+          debugPrint('✅ Using external camera: ${selectedCamera.name}');
+        } catch (e) {
+          // No external camera found, try back camera
+          try {
+            selectedCamera = _cameras!.firstWhere(
+              (camera) => camera.lensDirection == CameraLensDirection.back,
+            );
+            debugPrint('✅ Using back camera: ${selectedCamera.name}');
+          } catch (e) {
+            // Use first available camera as fallback
+            selectedCamera = _cameras!.first;
+            debugPrint('✅ Using first available camera: ${selectedCamera.name}');
+          }
+        }
 
         _cameraController = CameraController(
-          frontCamera,
+          selectedCamera,
           ResolutionPreset.high,
           enableAudio: false,
         );
@@ -485,6 +512,52 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     return matchedTheme ?? 'futuristic_workspace';
   }
 
+  // Calculate rotation angle to make camera preview portrait
+  double _getRotationAngle() {
+    if (_cameraController == null) return 0;
+
+    // Get camera preview aspect ratio
+    final aspectRatio = _cameraController!.value.aspectRatio;
+
+    // If aspect ratio > 1, camera is in landscape, rotate 90 degrees (π/2 radians)
+    // If aspect ratio < 1, camera is already portrait, no rotation needed
+    if (aspectRatio > 1) {
+      debugPrint('📐 Camera is landscape (${aspectRatio}), rotating to portrait');
+      return 1.5708; // 90 degrees in radians (π/2)
+    }
+
+    debugPrint('📐 Camera is already portrait (${aspectRatio})');
+    return 0;
+  }
+
+  // Get preview width for the camera (considering rotation)
+  double _getPreviewWidth() {
+    if (_cameraController == null) return 100;
+
+    final aspectRatio = _cameraController!.value.aspectRatio;
+
+    // If landscape (will be rotated), use height as width
+    if (aspectRatio > 1) {
+      return _cameraController!.value.previewSize!.height;
+    }
+
+    return _cameraController!.value.previewSize!.width;
+  }
+
+  // Get preview height for the camera (considering rotation)
+  double _getPreviewHeight() {
+    if (_cameraController == null) return 100;
+
+    final aspectRatio = _cameraController!.value.aspectRatio;
+
+    // If landscape (will be rotated), use width as height
+    if (aspectRatio > 1) {
+      return _cameraController!.value.previewSize!.width;
+    }
+
+    return _cameraController!.value.previewSize!.height;
+  }
+
   @override
   void dispose() {
     _countdownTimer?.cancel();
@@ -547,7 +620,22 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                           ? Stack(
                               fit: StackFit.expand,
                               children: [
-                                CameraPreview(_cameraController!),
+                                // Rotate camera preview to portrait and fill container
+                                OverflowBox(
+                                  maxWidth: double.infinity,
+                                  maxHeight: double.infinity,
+                                  child: FittedBox(
+                                    fit: BoxFit.cover,
+                                    child: SizedBox(
+                                      width: _getPreviewWidth() * 1.6,  // Scale 60% larger to ensure full coverage
+                                      height: _getPreviewHeight() * 1.6, // Scale 60% larger to ensure full coverage
+                                      child: Transform.rotate(
+                                        angle: _getRotationAngle(),
+                                        child: CameraPreview(_cameraController!),
+                                      ),
+                                    ),
+                                  ),
+                                ),
 
                                 // Countdown overlay
                                 if (_countdown > 0)
